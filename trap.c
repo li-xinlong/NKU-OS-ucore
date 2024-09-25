@@ -113,17 +113,9 @@ void interrupt_handler(struct trapframe *tf) {
             * (4)判断打印次数，当打印次数为10时，调用<sbi.h>中的关机函数关机
             */
             clock_set_next_event();
-            static int ticks = 0;
-            ticks++;
 
-            if (ticks >= TICK_NUM) {
+            if (++ticks % TICK_NUM == 0) {
                 print_ticks();
-                num++;
-                ticks = 0; // 重置ticks计数器
-
-                if (num >= 10) {
-                    sbi_shutdown();
-                }
             }
             break;
         case IRQ_H_TIMER:
@@ -163,8 +155,8 @@ void exception_handler(struct trapframe *tf) {
              *(2)输出异常指令地址
              *(3)更新 tf->epc寄存器
             */
-            cprintf("Illegal instruction caught at 0x%lx\n", tf->epc);
             cprintf("Exception type: Illegal instruction\n");
+            cprintf("Illegal instruction caught at 0x%lx\n", tf->epc);
             tf->epc += 4; // 指令是4字节
             break;
         case CAUSE_BREAKPOINT:
@@ -174,8 +166,9 @@ void exception_handler(struct trapframe *tf) {
              *(2)输出异常指令地址
              *(3)更新 tf->epc寄存器
             */
-            cprintf("ebreak caught at 0x%lx\n", tf->epc);
             cprintf("Exception type: breakpoint\n");
+            cprintf("ebreak caught at 0x%lx\n", tf->epc);
+
             tf->epc += 2; // 断点指令是 ebreak，占2个字节
             break;
         case CAUSE_MISALIGNED_LOAD:
