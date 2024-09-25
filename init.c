@@ -18,7 +18,8 @@ void test_breakpoint() {
 void test_illegal_instruction() {
     // 使用一个无效的操作码来触发非法指令异常
     // 这里的 0x0067a023 是一个示例操作码，它不是任何有效的 RISC-V 指令
-    asm volatile(".4byte 0x1117a023");
+    //asm volatile(".4byte 0x80200053");
+    asm volatile("mret");
 }
 
 
@@ -39,6 +40,12 @@ int kern_init(void) {
     // grade_backtrace();
 
     idt_init();  // init interrupt descriptor table
+
+    // rdtime in mbare mode crashes
+    clock_init();  // init clock interrupt
+
+    intr_enable();  // enable irq interrupt
+
     // 初始化完成后，调用测试函数
     cprintf("Testing breakpoint exception... ");
     test_breakpoint(); // 这将触发断点异常
@@ -48,13 +55,7 @@ int kern_init(void) {
 
     // 由于这些函数会触发异常，正常情况下代码不会执行到这里
     // 如果异常处理正常工作，控制权会在异常处理后返回到这里
-    cprintf("This should not be reached.n");
-    // rdtime in mbare mode crashes
-    clock_init();  // init clock interrupt
-
-    intr_enable();  // enable irq interrupt
-
-
+    cprintf("This should not be reached.n\n");
 
     while (1)
         ;
