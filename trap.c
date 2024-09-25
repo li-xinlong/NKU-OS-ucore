@@ -116,6 +116,10 @@ void interrupt_handler(struct trapframe *tf) {
 
             if (++ticks % TICK_NUM == 0) {
                 print_ticks();
+                num++;
+                if (num >= 10) {
+                    sbi_shutdown();
+                }
             }
             break;
         case IRQ_H_TIMER:
