@@ -17,9 +17,9 @@ void test_breakpoint() {
 }
 
 void test_illegal_instruction() {
-    // 这里的 0x0067a023 是一个示例操作码，它不是任何有效的 RISC-V 指令
     asm volatile(".4byte 0x80200053");
-    //asm volatile ("mret");
+    asm volatile ("mret");
+    //asm volatile ("sret");
 }
 
 int kern_init(void) {

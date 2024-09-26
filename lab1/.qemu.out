@@ -24,10 +24,19 @@ PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
 
 Special kernel symbols:
   entry  0x000000008020000a (virtual)
-  etext  0x0000000080200a20 (virtual)
+  etext  0x0000000080200a44 (virtual)
   edata  0x0000000080204010 (virtual)
   end    0x0000000080204028 (virtual)
 Kernel executable memory footprint: 17KB
+断点异常测试开始
+ Exception type:breakpoint
+指令地址: 0x80200052
+非法指令异常测试开始
+ Exception type:Illegal instruction
+指令地址: 0x80200060
+sbi_emulate_csr_read: hartid0: invalid csr_num=0x302
+Exception type:Illegal instruction
+指令地址: 0x80200064
 ++ setup timer interrupts
 100 ticks
 100 ticks
