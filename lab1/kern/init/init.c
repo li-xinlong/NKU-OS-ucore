@@ -18,7 +18,7 @@ void test_breakpoint() {
 
 void test_illegal_instruction() {
     asm volatile(".4byte 0x80200053");
-    asm volatile ("mret");
+    //asm volatile ("mret");
     //asm volatile ("sret");
 }
 
