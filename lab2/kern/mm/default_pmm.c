@@ -2,7 +2,6 @@
 #include <list.h>
 #include <string.h>
 #include <default_pmm.h>
-
 /* In the first fit algorithm, the allocator keeps a list of free blocks (known as the free list) and,
    on receiving a request for memory, scans along the list for the first block that is large enough to
    satisfy the request. If the chosen block is significantly larger than that requested, then it is 
@@ -53,10 +52,10 @@
  *               (5.2) reset the fields of pages, such as p->ref, p->flags (PageProperty)
  *               (5.3) try to merge low addr or high addr blocks. Notice: should change some pages's p->property correctly.
  */
-free_area_t free_area;
+free_area_t free_area_d;
 
-#define free_list (free_area.free_list)
-#define nr_free (free_area.nr_free)
+#define free_list (free_area_d.free_list)
+#define nr_free (free_area_d.nr_free)
 
 static void
 default_init(void) {
@@ -292,7 +291,7 @@ default_check(void) {
     assert(count == 0);
     assert(total == 0);
 }
-//这个结构体在
+
 const struct pmm_manager default_pmm_manager = {
     .name = "default_pmm_manager",
     .init = default_init,
