@@ -13,24 +13,33 @@
  * the next/prev entries and we can generate better code by using them
  * directly rather than using the generic single-entry routines.
  * */
-
+//链表中的节点结构，包含前驱和后继指针。
 struct list_entry {
     struct list_entry *prev, *next;
 };
-
+//定义链表节点的类型。
 typedef struct list_entry list_entry_t;
-
+//链表初始化函数。
 static inline void list_init(list_entry_t *elm) __attribute__((always_inline));
+//链表添加函数。
 static inline void list_add(list_entry_t *listelm, list_entry_t *elm) __attribute__((always_inline));
+//链表添加到前面函数。
 static inline void list_add_before(list_entry_t *listelm, list_entry_t *elm) __attribute__((always_inline));
+//链表添加到后面函数。
 static inline void list_add_after(list_entry_t *listelm, list_entry_t *elm) __attribute__((always_inline));
+//链表删除函数。
 static inline void list_del(list_entry_t *listelm) __attribute__((always_inline));
+//链表删除并初始化函数。
 static inline void list_del_init(list_entry_t *listelm) __attribute__((always_inline));
+//链表是否为空函数。
 static inline bool list_empty(list_entry_t *list) __attribute__((always_inline));
+//返回传入节点的下一个节点。
 static inline list_entry_t *list_next(list_entry_t *listelm) __attribute__((always_inline));
+//返回传入节点的前一个节点。
 static inline list_entry_t *list_prev(list_entry_t *listelm) __attribute__((always_inline));
-
+//链表具体的添加函数。list_add_before和list_add_before是对__list_add的封装。
 static inline void __list_add(list_entry_t *elm, list_entry_t *prev, list_entry_t *next) __attribute__((always_inline));
+//链表具体的删除函数。list_del是对__list_del的封装。
 static inline void __list_del(list_entry_t *prev, list_entry_t *next) __attribute__((always_inline));
 
 /* *
@@ -50,6 +59,7 @@ list_init(list_entry_t *elm) {
  * Insert the new element @elm *after* the element @listelm which
  * is already in the list.
  * */
+
 static inline void
 list_add(list_entry_t *listelm, list_entry_t *elm) {
     list_add_after(listelm, elm);

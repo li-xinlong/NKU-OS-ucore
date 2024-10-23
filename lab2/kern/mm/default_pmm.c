@@ -62,7 +62,7 @@ default_init(void) {
     list_init(&free_list);
     nr_free = 0;
 }
-
+//确保整个链表是按照地址从小到大的顺序排列的
 static void
 default_init_memmap(struct Page *base, size_t n) {
     assert(n > 0);
@@ -90,7 +90,7 @@ default_init_memmap(struct Page *base, size_t n) {
         }
     }
 }
-
+//从空闲列表中分配n个页,并将其从空闲列表中删除
 static struct Page *
 default_alloc_pages(size_t n) {
     assert(n > 0);
@@ -120,12 +120,13 @@ default_alloc_pages(size_t n) {
     }
     return page;
 }
-
+//释放n个页,并将其添加到空闲列表中，并合并空闲页面碎片
 static void
 default_free_pages(struct Page *base, size_t n) {
     assert(n > 0);
     struct Page *p = base;
     for (; p != base + n; p ++) {
+        //PG_reserved和PG_property属性位都为0
         assert(!PageReserved(p) && !PageProperty(p));
         p->flags = 0;
         set_page_ref(p, 0);
@@ -133,7 +134,7 @@ default_free_pages(struct Page *base, size_t n) {
     base->property = n;
     SetPageProperty(base);
     nr_free += n;
-
+    //将页面按照地址从大到小插入到空闲页面列表中
     if (list_empty(&free_list)) {
         list_add(&free_list, &(base->page_link));
     } else {
@@ -148,7 +149,7 @@ default_free_pages(struct Page *base, size_t n) {
             }
         }
     }
-
+    //被删除页面与前一个空闲页面合并
     list_entry_t* le = list_prev(&(base->page_link));
     if (le != &free_list) {
         p = le2page(le, page_link);
@@ -159,7 +160,7 @@ default_free_pages(struct Page *base, size_t n) {
             base = p;
         }
     }
-
+    //被删除页面与后一个空闲页面合并
     le = list_next(&(base->page_link));
     if (le != &free_list) {
         p = le2page(le, page_link);
@@ -170,7 +171,7 @@ default_free_pages(struct Page *base, size_t n) {
         }
     }
 }
-
+//返回当前可用的空闲页面的数量。
 static size_t
 default_nr_free_pages(void) {
     return nr_free;
