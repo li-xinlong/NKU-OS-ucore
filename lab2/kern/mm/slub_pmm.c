@@ -350,12 +350,23 @@ slub_check(void)
     cprintf("释放128字节测试通过\n");
     slub_free_small(p2, size2);
     cprintf("释放256字节测试通过\n");
+
     cprintf("重复64字节分配测试开始\n");
     for (int i = 0; i < 1000; i++)
     {
         void *ptr = slub_alloc_small(64 / PGSIZE);
         assert(ptr != NULL);
         slub_free_small(ptr, 64 / PGSIZE);
+    }
+    void *ptr[64];
+    for (int i = 0; i < 64; i++)
+    {
+        ptr[i] = slub_alloc_small(64 / PGSIZE);
+        assert(ptr[i] != NULL);
+    }
+    for (int i = 0; i < 64; i++)
+    {
+        slub_free_small(ptr[i], 64 / PGSIZE);
     }
     cprintf("重复64字节分配测试通过\n");
     struct Page *page = slub_alloc(5); // 分配 5 页

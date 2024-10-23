@@ -3,10 +3,10 @@
 #include <string.h>
 #include <best_fit_pmm.h>
 #include <stdio.h>
-free_area_t free_area;
+free_area_t free_area_b;
 
-#define free_list (free_area.free_list)
-#define nr_free (free_area.nr_free)
+#define free_list (free_area_b.free_list)
+#define nr_free (free_area_b.nr_free)
 
 static void
 best_fit_init(void)

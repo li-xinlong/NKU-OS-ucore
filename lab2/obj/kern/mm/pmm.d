@@ -3,4 +3,4 @@ obj/kern/mm/pmm.o obj/kern/mm/pmm.d: kern/mm/pmm.c kern/mm/default_pmm.h \
  kern/mm/memlayout.h libs/list.h kern/mm/mmu.h libs/riscv.h \
  kern/mm/slub_pmm.h kern/mm/best_fit_pmm.h libs/error.h libs/sbi.h \
  libs/stdio.h libs/stdarg.h libs/string.h kern/mm/../sync/sync.h \
- kern/driver/intr.h
+ kern/driver/intr.h kern/mm/buddy_pmm.h
