@@ -16,14 +16,17 @@
 // virtual address of physical page array
 struct Page *pages;
 // amount of physical memory (in pages)
+// 表示物理内存的总页数，初始化为 0。
 size_t npage = 0;
 // the kernel image is mapped at VA=KERNBASE and PA=info.base
+// 表示虚拟地址与物理地址之间的偏移量。
 uint64_t va_pa_offset;
 // memory starts at 0x80000000 in RISC-V
 // DRAM_BASE defined in riscv.h as 0x80000000
+// 这个值用于区分内核映射的页和用户可用的页。
 const size_t nbase = DRAM_BASE / PGSIZE;
-
-// virtual address of boot-time page directory
+// 这是一个指向页表目录的指针，表示启动时的虚拟地址。
+//  virtual address of boot-time page directory
 uintptr_t *satp_virtual = NULL;
 // physical address of boot-time page directory
 uintptr_t satp_physical;
@@ -77,6 +80,7 @@ void free_pages(struct Page *base, size_t n)
 
 // nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE)
 // of current free memory
+// 获取当前可用空闲物理页面数量
 size_t nr_free_pages(void)
 {
     size_t ret;
@@ -102,27 +106,29 @@ static void page_init(void)
             mem_end - 1);
 
     uint64_t maxpa = mem_end;
-
+    // 设置最大物理地址为物理内存的结束地址。
+    // 检查最大物理地址是否超过内核顶部地址 KERNTOP
     if (maxpa > KERNTOP)
     {
         maxpa = KERNTOP;
     }
 
     extern char end[];
-
+    // 计算可用页面的数量，npage 表示总页数。
     npage = maxpa / PGSIZE;
     // kernel在end[]结束, pages是剩下的页的开始
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
-
+    // 内核态页面不可分配
     for (size_t i = 0; i < npage - nbase; i++)
     {
         SetPageReserved(pages + i);
     }
-
+    // 计算剩余可用物理内存的起始地址。
     uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * (npage - nbase));
 
     mem_begin = ROUNDUP(freemem, PGSIZE);
     mem_end = ROUNDDOWN(mem_end, PGSIZE);
+    // 剩余内存初始化内存隐射，创建可用页面列表
     if (freemem < mem_end)
     {
         init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
