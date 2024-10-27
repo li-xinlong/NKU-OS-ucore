@@ -240,7 +240,390 @@ static size_t default_nr_free_pages(void) {
 2. 长期优化：引入更复杂的数据结构如红黑树、跳表或分离空闲链表结构可以进一步提升内存分配和释放的效率。这些方法可以减少查找和插入空闲块时的时间复杂度，使得内存管理系统更高效、灵活。
 #### 练习2：实现 Best-Fit 连续物理内存分配算法（需要编程）
 在完成练习一后，参考kern/mm/default_pmm.c对First Fit算法的实现，编程实现Best Fit页面分配算法，算法的时空复杂度不做要求，能通过测试即可。
-请在实验报告中简要说明你的设计实现过程，阐述代码是如何对物理内存进行分配和释放，并回答如下问题：
+请在实验报告中简要说明你的设计实现过程，阐述代码是如何对物理内存进行分配和释放
+以下是对上述代码的详细分析：
+
+### 1. 整体架构
+这段代码实现了一个基于最佳适配（Best - Fit）算法的物理内存管理模块。它包含了内存初始化、内存映射初始化、内存分配、内存释放、空闲内存页数量查询以及内存管理正确性检查等功能。
+
+### 2. 关键函数分析
+
+#### （1）`best_fit_init`函数
+```c
+static void
+best_fit_init(void)
+{
+    list_init(&free_list);
+    nr_free = 0;
+}
+```
+- **功能**：
+    - 初始化空闲链表`free_list`，使其成为一个空链表。
+    - 将记录空闲页数量的变量`nr_free`初始化为0。
+- **目的**：为后续的内存管理操作准备好初始的数据结构和状态。
+
+#### （2）`best_fit_init_memmap`函数
+```c
+static void
+best_fit_init_memmap(struct Page *base, size_t n)
+{
+    assert(n > 0);
+    struct Page *p = base;
+    for (; p!= base + n; p++)
+    {
+        assert(PageReserved(p));
+        p->flags = p->property = 0;
+        set_page_ref(p, 0);
+    }
+    base->property = n;
+    SetPageProperty(base);
+    nr_free += n;
+    if (list_empty(&free_list))
+    {
+        list_add(&free_list, &(base->page_link));
+    }
+    else
+    {
+        list_entry_t *le = &free_list;
+        while ((le = list_next(le))!= &free_list)
+        {
+            struct Page *page = le2page(le, page_link);
+            if (base < page)
+            {
+                list_add_before(le, &(base->page_link));
+                break;
+            }
+            else if (list_next(le) == &free_list)
+            {
+                list_add(le, &(base->page_link));
+            }
+        }
+    }
+}
+```
+- **功能**：
+    - 首先，通过一个循环将从`base`开始的`n`个页的`flags`和`property`属性清零，并将它们的引用计数设为0。
+    - 接着，将`base`页的`property`属性设置为`n`，并标记该页具有属性（通过`SetPageProperty(base)`，这里可能是设置一些与页属性相关的标志位）。
+    - 然后，将空闲页数量`nr_free`增加`n`。
+    - 最后，根据空闲链表`free_list`的状态将`base`页插入到链表中：
+        - 如果链表为空，则直接将`base`页插入到链表中。
+        - 如果链表不为空，则遍历链表，找到合适的位置（当`base`小于`page`时，将`base`插入到`page`之前；如果遍历到链表末尾，则将`base`插入到链表尾部）插入`base`页。
+- **目的**：对给定的一段内存区域（从`base`开始的`n`个页）进行初始化，将其添加到空闲页链表中进行管理。
+
+#### （3）`best_fit_alloc_pages`函数
+```c
+static struct Page *
+best_fit_alloc_pages(size_t n)
+{
+    assert(n > 0);
+    if (n > nr_free)
+    {
+        return NULL;
+    }
+    struct Page *page = NULL;
+    list_entry_t *le = &free_list;
+    size_t min_size = nr_free + 1;
+    while ((le = list_next(le))!= &free_list)
+    {
+        struct Page *p = le2page(le, page_link);
+        if (p->property >= n && p->property < min_size)
+        {
+            page = p;
+            min_size = p->property;
+        }
+    }
+
+    if (page!= NULL)
+    {
+        list_entry_t *prev = list_prev(&(page->page_link));
+        list_del(&(page->page_link));
+        if (page->property > n)
+        {
+            struct Page *p = page + n;
+            p->property = page->property - n;
+            SetPageProperty(p);
+            list_add(prev, &(p->page_link));
+        }
+        nr_free -= n;
+        ClearPageProperty(page);
+    }
+    return page;
+}
+```
+- **功能**：
+    - 首先检查请求的页数`n`是否大于空闲页数量`nr_free`，如果是，则直接返回`NULL`，表示无法分配内存。
+    - 然后，遍历空闲链表`free_list`，寻找大小大于等于`n`且最接近`n`的空闲页块：
+        - 初始化变量`min_size`为一个较大值（`nr_free + 1`），用于记录找到的最适合的空闲页块大小。
+        - 在遍历过程中，当找到满足条件（`p->property >= n && p->property < min_size`）的页块时，更新`page`指针和`min_size`变量。
+    - 如果找到了合适的页块（`page`不为`NULL`）：
+        - 从链表中删除该页块。
+        - 如果该页块的大小大于`n`，则将其分割：
+            - 计算分割后剩余页块的起始地址`p = page + n`。
+            - 设置剩余页块的大小`p->property = page->property - n`，并标记其具有属性（`SetPageProperty(p)`）。
+            - 将剩余页块重新插入到空闲链表中。
+        - 减少空闲页数量`nr_free`，并清除分配页块的属性标记（`ClearPageProperty(page)`）。
+    - 最后返回分配的页块指针。
+- **目的**：实现最佳适配的内存分配算法，从空闲页链表中找到最适合请求大小的空闲页块进行分配。
+
+#### （4）`best_fit_free_pages`函数
+```c
+static void
+best_fit_free_pages(struct Page *base, size_t n)
+{
+    assert(n > 0);
+    struct Page *p = base;
+    for (; p!= base + n; p++)
+    {
+        assert(!PageReserved(p) &&!PageProperty(p));
+        p->flags = 0;
+        set_page_ref(p, 0);
+    }
+    base->property = n;
+    SetPageProperty(base);
+    nr_free += n;
+
+    if (list_empty(&free_list))
+    {
+        list_add(&free_list, &(base->page_link));
+    }
+    else
+    {
+        list_entry_t *le = &free_list;
+        while ((le = list_next(le))!= &free_list)
+        {
+            struct Page *page = le2page(le, page_link);
+            if (base < page)
+            {
+                list_add_before(le, &(base->page_link));
+                break;
+            }
+            else if (list_next(le) == &free_list)
+            {
+                list_add(le, &(base->page_link));
+            }
+        }
+    }
+
+    list_entry_t *le = list_prev(&(base->page_link));
+    if (le!= &free_list)
+    {
+        p = le2page(le, page_link);
+        if (p + p->property == base)
+        {
+            p->property += base->property;
+            ClearPageProperty(base);
+            list_del(&(base->page_link));
+            base = p;
+        }
+    }
+
+    le = list_next(&(base->page_link));
+    if (le!= &free_list)
+    {
+        p = le2page(le, page_link);
+        if (base + base->property == p)
+        {
+            base->property += p->property;
+            ClearPageProperty(p);
+            list_del(&(p->page_link));
+        }
+    }
+}
+```
+- **功能**：
+    - 首先，通过循环将从`base`开始的`n`个页的`flags`设置为0，引用计数设为0，并检查这些页没有被保留且没有属性（通过`assert`语句）。
+    - 接着，设置`base`页的`property`属性为`n`，并标记该页具有属性（`SetPageProperty(base)`），同时将空闲页数量`nr_free`增加`n`。
+    - 然后，根据空闲链表`free_list`的状态将`base`页插入到链表中（插入逻辑与`best_fit_init_memmap`函数中的插入逻辑相同）。
+    - 之后，检查`base`页前后的页是否是空闲且连续的：
+        - 检查`base`页之前的页：
+            - 获取`base`页前一个页块的指针`p`。
+            - 如果`p`页块的末尾地址加上其大小等于`base`页的起始地址（`p + p->property == base`），则进行合并操作：
+                - 更新`p`页块的大小`p->property += base->property`。
+                - 清除`base`页的属性标记（`ClearPageProperty(base)`）。
+                - 从链表中删除`base`页。
+                - 将`base`指针更新为`p`，以便后续可能的连续合并检查。
+        - 检查`base`页之后的页：
+            - 获取`base`页后一个页块的指针`p`。
+            - 如果`base`页的末尾地址加上其大小等于`p`页的起始地址（`base + base->property == p`），则进行合并操作：
+                - 更新`base`页的大小`base->property += p->property`。
+                - 清除`p`页的属性标记（`ClearPageProperty(p)`）。
+                - 从链表中删除`p`页。
+- **目的**：实现内存页的释放操作，将释放的页块添加到空闲链表中，并进行相邻空闲页块的合并操作。
+
+#### （5）`best_fit_nr_free_pages`函数
+```c
+static size_t
+best_fit_nr_free_pages(void)
+{
+    return nr_free;
+}
+```
+- **功能**：简单地返回当前空闲页的数量`nr_free`。
+- **目的**：提供一种查询当前空闲页数量的方法。
+
+#### （6）`basic_check`函数
+```c
+static void
+basic_check(void)
+{
+    struct Page *p0, *p1, *p2;
+    p0 = p1 = p2 = NULL;
+    assert((p0 = alloc_page())!= NULL);
+    assert((p1 = alloc_page())!= NULL);
+    assert((p2 = alloc_page())!= NULL);
+
+    assert(p0!= p1 && p0!= p2 && p1!= p2);
+    assert(page_ref(p0) == 0 && page_ref(p1) == 0 && page_ref(p2) == 0);
+
+    assert(page2pa(p0) < npage * PGSIZE);
+    assert(page2pa(p1) < npage * PGSIZE);
+    assert(page2pa(p2) < npage * PGSIZE);
+
+    list_entry_t free_list_store = free_list;
+    list_init(&free_list);
+    assert(list_empty(&free_list));
+
+    unsigned int nr_free_store = nr_free;
+    nr_free = 0;
+
+    assert(alloc_page() == NULL);
+
+    free_page(p0);
+    free_page(p1);
+    free_page(p2);
+    assert(nr_free == 3);
+
+    assert((p0 = alloc_page())!= NULL);
+    assert((p1 = alloc_page())!= NULL);
+    assert((p2 = alloc_page())!= NULL);
+
+    assert(alloc_page() == NULL);
+
+    free_page(p0);
+    assert(!list_empty(&free_list));
+
+    struct Page *p;
+    assert((p = alloc_page()) == p0);
+    assert(alloc_page() == NULL);
+
+    assert(nr_free == 0);
+    free_list = free_list_store;
+    nr_free = nr_free_store;
+
+    free_page(p);
+    free_page(p1);
+    free_page(p2);
+}
+```
+- **功能**：
+    - 进行一系列基本的内存分配和释放检查：
+        - 首先，分配3个页（`p0`、`p1`、`p2`），并通过一系列`assert`语句检查：
+            - 这3个页的指针互不相同。
+            - 它们的引用计数都为0。
+            - 它们的物理地址在合理范围内（小于`npage * PGSIZE`）。
+        - 然后，保存当前的空闲链表和空闲页数量，重新初始化空闲链表并将空闲页数量设为0，检查此时分配页是否失败。
+        - 接着，释放之前分配的3个页，检查空闲页数量是否变为3。
+        - 再重新分配3个页，检查分配操作是否成功，然后再检查分配第4个页是否失败。
+        - 之后，释放`p0`页，检查空闲链表是否不为空。
+        - 再从链表中分配一个页，检查分配的页是否为`p0`，以及再次分配页是否失败。
+        - 最后，恢复原始的空闲链表和空闲页数量，并释放所有页。
+- **目的**：对内存分配和释放的基本功能进行全面的测试和验证，确保在简单场景下内存管理操作的正确性。
+
+#### （7）`best_fit_check`函数
+```c
+static void
+best_fit_check(void)
+{
+    int score = 0, sumscore = 6;
+    int count = 0, total = 0;
+    list_entry_t *le = &free_list;
+    while ((le = list_next(le))!= &free_list)
+    {
+        struct Page *p = le2page(le, page_link);
+        assert(PageProperty(p));
+        count++, total += p->property;
+    }
+    assert(total == nr_free_pages());
+
+    basic_check();
+
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+    struct Page *p0 = alloc_pages(5), *p1, *p2;
+    assert(p0!= NULL);
+    assert(!PageProperty(p0));
+
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+    list_entry_t free_list_store = free_list;
+    list_init(&free_list);
+    assert(list_empty(&free_list));
+    assert(alloc_page() == NULL);
+
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+    unsigned int nr_free_store = nr_free;
+    nr_free = 0;
+
+    // * - - * -
+    free_pages(p0 + 1, 2);
+    free_pages(p0 + 4, 1);
+    assert(alloc_pages(4) == NULL);
+    assert(PageProperty(p0 + 1) && p0[1].property == 2);
+    // * - - * *
+    assert((p1 = alloc_pages(1))!= NULL);
+    assert(alloc_pages(2)!= NULL); // best fit feature
+    assert(p0 + 4 == p1);
+
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+    p2 = p0 + 1;
+    free_pages(p0, 5);
+    assert((p0 = alloc_pages(5))!= NULL);
+    assert(alloc_page() == NULL);
+
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+    assert(nr_free == 0);
+    nr_free = nr_free_store;
+
+    free_list = free_list_store;
+    free_pages(p0, 5);
+
+    le = &free_list;
+    while ((le = list_next(le))!= &free_list)
+    {
+        struct Page *p = le2page(le, page_link);
+        count--, total -= p->property;
+    }
+    assert(count == 0);
+    assert(total == 0);
+#ifdef ucore_test
+    score += 1;
+    cprintf("grading: %d / %d points\n", score, sumscore);
+#endif
+}
+```
+- **功能**：
+    - 首先，通过遍历空闲链表检查空闲页的属性和总大小：
+        - 计算空闲页的数量`count`和总大小`total`。
+        - 通过`assert`语句检查总大小是否等于通过`nr_free_pages()`函数获取的空闲页数量（这里`nr_free_pages()`可能是一个获取空闲页总大小的函数，在代码中未给出，但根据上下文推测与`nr_free`相关）。
+    - 然后，调用`basic_check`函数进行基本的内存管理检查。
+    - 接着，进行一系列复杂的内存分配和释放操作检查：
+        - 分配5个页给`p0`，并检查分配成功且`p0`没有特定属性（`!PageProperty(p0)`）。
+        - 保存空闲链表和空闲页数量，重新初始化空闲链表和空闲页数量，检查此时分配页是否失败。
+        - 释放`p0`中的部分页（`p0 + 1`的2页和`p0 + 4`的1页），检查分配4页是否失败，以及释放
+并回答如下问题：
 - 你的 Best-Fit 算法是否有进一步的改进空间？
 1. 使用二级或多级分配策略
 为了提高内存分配的效率，可以采用二级或多级分配策略。在此策略中，首先根据请求的内存大小选择一个合适的块，如果没有合适的块，则分配一个更大的块并将其拆分为多个小块，以适应不同的请求。这种方法可以减少小块的合并和碎片化问题。
