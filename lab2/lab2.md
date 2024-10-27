@@ -1,72 +1,8 @@
-# Lab 2
+# Lab2实验报告
+李欣龙 闫耀方 赵思洋
+## 练习1：理解first-fit 连续物理内存分配算法（思考题）
+>first-fit 连续物理内存分配算法作为物理内存分配一个很基础的方法，需要同学们理解它的实现过程。请大家仔细阅读实验手册的教程并结合`kern/mm/default_pmm.c`中的相关代码，认真分析default_init，default_init_memmap，default_alloc_pages， default_free_pages等相关函数，并描述程序在进行物理内存分配的过程以及各个函数的作用。 请在实验报告中简要说明你的设计实现过程。请回答如下问题：
 
-## 一、实验要求：
-
-- 基于markdown格式来完成，以文本方式为主
-- 填写各个基本练习中要求完成的报告内容
-- 列出你认为本实验中重要的知识点，以及与对应的OS原理中的知识点，并简要说明你对二者的含义，关系，差异等方面的理解（也可能出现实验中的知识点没有对应的原理知识点）
-- 列出你认为OS原理中很重要，但在实验中没有对应上的知识点
-
-## 二、知识点整理：
-
-### （一）实验中重要的知识点与对应的OS原理
-### 1. 物理内存管理
-在代码中，物理内存管理的实现通常通过结构体和函数来管理内存页的分配与释放。例如，`struct Page` 代表内存页，每个页面的属性（如是否可用、是否被使用等）由相应的位标志来管理。
-#### 代码示例分析
-```c
-struct Page {
-    int property; // 页的属性标志
-    struct list_head page_link; // 链接到空闲列表
-};
-```
-这个结构体中的 `property` 用于标识页的状态，确保不同进程对内存的访问互不干扰。
-
-### 2. 虚拟地址与物理地址
-在代码中，虚拟地址与物理地址的转换涉及页表的操作。通过查找页表，代码能够将虚拟地址转换为物理地址，并进行访问。
-
-#### 代码示例分析
-```c
-struct Page *page = le2page(le, page_link); // 从链表节点获取页面
-```
-这段代码通过链表操作获取一个空闲页面，展示了如何通过结构体和链表管理物理内存。
-
-### 4. 多级页表
-代码可能通过多个结构体和指针实现多级页表的概念。在多级页表中，每一层的页表项负责管理更大的地址空间。
-
-#### 代码示例分析
-```c
-list_add(&free_area[order].free_list, &(buddy->page_link));
-```
-这行代码表示将一个空闲块加入到特定级别的空闲链表中，反映了多级页表的动态管理。
-
-### 5. 页表项 (PTE) 结构
-页表项结构通常在代码中以数组或结构体的形式存在，标记页的权限和状态。
-
-#### 代码示例分析
-```c
-page->property = n; // 设置页的属性
-```
-这里，属性包括可读、可写等，直接影响页面的访问权限。
-
-### 6. 页表基址寄存器 (satp)
-尽管代码中未直接涉及 `satp`，但可以在页表的初始化和切换中找到相关逻辑。
-
-#### 代码示例分析
-```c
-ClearPageProperty(page);
-```
-在进行页表操作前，代码可能需要清除标志，确保系统状态一致性。
-
-### （二）列出你认为OS原理中很重要，但在实验中没有对应上的知识点
-建立快表以加快访问效率
-#### 练习0：填写已有实验
-
-本实验依赖实验1。请把你做的实验1的代码填入本实验中代码中有“LAB1”的注释相应部分并按照实验手册进行进一步的修改。具体来说，就是跟着实验手册的教程一步步做，然后完成教程后继续完成完成exercise部分的剩余练习。
-
-#### 练习1：理解first-fit 连续物理内存分配算法（思考题）
-first-fit 连续物理内存分配算法作为物理内存分配一个很基础的方法，需要同学们理解它的实现过程。请大家仔细阅读实验手册的教程并结合`kern/mm/default_pmm.c`中的相关代码，认真分析default_init，default_init_memmap，default_alloc_pages， default_free_pages等相关函数，并描述程序在进行物理内存分配的过程以及各个函数的作用。
-请在实验报告中简要说明你的设计实现过程。
-以下是`first-fit`内存分配算法中的几个关键函数的详细讲解：
 
 ### 1. `default_init`
 
@@ -233,20 +169,15 @@ static size_t default_nr_free_pages(void) {
 
 `default_nr_free_pages` 函数返回当前系统中空闲页面的总数，即 `nr_free` 的值。
 
-这些函数协同工作，实现了 `first-fit` 分配算法的基本流程，从而有效管理内存的分配和回收。
-请回答如下问题：
-- 你的first fit算法是否有进一步的改进空间？
+>这些函数协同工作，实现了 `first-fit` 分配算法的基本流程，从而有效管理内存的分配和回收。下面请回答如下问题：
+>- 你的first fit算法是否有进一步的改进空间？
+
 1. 短期优化：可以立即通过按块大小排序的方式优化当前双向链表结构，这能显著提高查找效率，避免地址线性遍历的开销。
 2. 长期优化：引入更复杂的数据结构如红黑树、跳表或分离空闲链表结构可以进一步提升内存分配和释放的效率。这些方法可以减少查找和插入空闲块时的时间复杂度，使得内存管理系统更高效、灵活。
-#### 练习2：实现 Best-Fit 连续物理内存分配算法（需要编程）
-在完成练习一后，参考kern/mm/default_pmm.c对First Fit算法的实现，编程实现Best Fit页面分配算法，算法的时空复杂度不做要求，能通过测试即可。
-请在实验报告中简要说明你的设计实现过程，阐述代码是如何对物理内存进行分配和释放
-以下是对上述代码的详细分析：
 
-### 1. 整体架构
-这段代码实现了一个基于最佳适配（Best - Fit）算法的物理内存管理模块。它包含了内存初始化、内存映射初始化、内存分配、内存释放、空闲内存页数量查询以及内存管理正确性检查等功能。
+## 练习2：实现 Best-Fit 连续物理内存分配算法（需要编程）
+>在完成练习一后，参考kern/mm/default_pmm.c对First Fit算法的实现，编程实现Best Fit页面分配算法，算法的时空复杂度不做要求，能通过测试即可。 请在实验报告中简要说明你的设计实现过程，阐述代码是如何对物理内存进行分配和释放，并回答如下问题：
 
-### 2. 关键函数分析
 
 #### （1）`best_fit_init`函数
 ```c
@@ -623,36 +554,41 @@ best_fit_check(void)
         - 分配5个页给`p0`，并检查分配成功且`p0`没有特定属性（`!PageProperty(p0)`）。
         - 保存空闲链表和空闲页数量，重新初始化空闲链表和空闲页数量，检查此时分配页是否失败。
         - 释放`p0`中的部分页（`p0 + 1`的2页和`p0 + 4`的1页），检查分配4页是否失败，以及释放
-并回答如下问题：
-- 你的 Best-Fit 算法是否有进一步的改进空间？
-1. 使用二级或多级分配策略
-为了提高内存分配的效率，可以采用二级或多级分配策略。在此策略中，首先根据请求的内存大小选择一个合适的块，如果没有合适的块，则分配一个更大的块并将其拆分为多个小块，以适应不同的请求。这种方法可以减少小块的合并和碎片化问题。
-2. 合并空闲块的策略优化
-在释放内存时，当前的实现可能需要遍历整个空闲链表来找到可以合并的块。可以考虑在分配时维护一个合并列表，只记录相邻的空闲块，减少查找时间。
-#### 扩展练习Challenge：buddy system（伙伴系统）分配算法（需要编程）
 
-Buddy System算法把系统中的可用存储空间划分为存储块(Block)来进行管理, 每个存储块的大小必须是2的n次幂(Pow(2, n)), 即1, 2, 4, 8, 16, 32, 64, 128...
 
- -  参考[伙伴分配器的一个极简实现](http://coolshell.cn/articles/10427.html)， 在ucore中实现buddy system分配算法，要求有比较充分的测试用例说明实现的正确性，需要有设计文档。
- -  # Buddy System分配算法
 
-## 一、概述
+#### best fit算法测试结果如下所示：
+
+![image-20241027200347756](.\res\2.png)
+
+>- 你的 Best-Fit 算法是否有进一步的改进空间？
+
+1. 使用二级或多级分配策略。为了提高内存分配的效率，可以采用二级或多级分配策略。在此策略中，首先根据请求的内存大小选择一个合适的块，如果没有合适的块，则分配一个更大的块并将其拆分为多个小块，以适应不同的请求。这种方法可以减少小块的合并和碎片化问题。
+2. 合并空闲块的策略优化。在释放内存时，当前的实现可能需要遍历整个空闲链表来找到可以合并的块。可以考虑在分配时维护一个合并列表，只记录相邻的空闲块，减少查找时间。
+3. 使用更高效的数据结构，比如平衡树，哈希表等来维持空闲块的大小，这样在分配时可以快速定位最合适的空闲块，避免每次分配时都要遍历整个链表。
+
+## 扩展练习Challenge：buddy system（伙伴系统）分配算法（需要编程）
+>Buddy System算法把系统中的可用存储空间划分为存储块(Block)来进行管理, 每个存储块的大小必须是2的n次幂(Pow(2, n)), 即1, 2, 4, 8, 16, 32, 64, 128...
+> - 参考[伙伴分配器的一个极简实现](http://coolshell.cn/articles/10427.html)， 在ucore中实现buddy system分配算法，要求有比较充分的测试用例说明实现的正确性，需要有设计文档。
+
+
+### 一、概述
 Buddy System算法把系统中的可用存储空间划分为存储块(Block)来进行管理，每个存储块的大小必须是2的n次幂(Pow(2, n))，即1, 2, 4, 8, 16, 32, 64, 128...
 
 在实现伙伴系统分配算法之前，首先回顾一下伙伴系统的基本概念。伙伴系统分配算法通过将内存按2的幂进行划分，以便于高效管理内存的分配与释放。该算法利用空闲链表来维护不同大小的空闲内存块，能够快速查找合适大小的块，且在合并时能够减少外部碎片。尽管其优点明显，但也存在内部碎片的问题，尤其在请求大小不是2的幂次方时。
 
-## 二、设计思路
+### 二、设计思路
 
-### （一）内存分区管理
+#### （一）内存分区管理
 整个可分配的分区大小为N，请求的分区大小为n，当n < N时，将N分配给进程。
 按2的幂划分空闲块，直至找到合适大小的空闲块。
 
-### （二）合并条件
+#### （二）合并条件
 1. 相同大小且为2的整数次幂。
 2. 地址相邻。
 3. 低地址空闲块的起始地址为块大小的整数次幂的位数。
 
-### （三）空闲页初始化部分：按照伙伴系统的规则划分成合适大小的块，并将这些块添加到对应的空闲块链表中进行管理。按照order从大到小顺序在物理内存base处，通过找到合适的块大小对应的幂次（order）来完成这一操作。
+#### （三）空闲页初始化部分：按照伙伴系统的规则划分成合适大小的块，并将这些块添加到对应的空闲块链表中进行管理。按照order从大到小顺序在物理内存base处，通过找到合适的块大小对应的幂次（order）来完成这一操作。
 ```c
 static void buddy_init_memmap(struct Page *base, size_t n)
 {
@@ -669,7 +605,7 @@ static void buddy_init_memmap(struct Page *base, size_t n)
 }
 ```
 
-### （四）页分配：order从从当前页大小到大查找，通过地址偏移量二进制位运算，计算拆分得到伙伴地址page + (1 << current_order)，
+#### （四）页分配：order从从当前页大小到大查找，通过地址偏移量二进制位运算，计算拆分得到伙伴地址page + (1 << current_order)，
 ```c
 static struct Page *buddy_alloc_pages(size_t n)
 {
@@ -710,7 +646,7 @@ static struct Page *buddy_alloc_pages(size_t n)
 }
 ```
 
-### （五）页释放：order从当前页大小到大释放，通过uintptr_t buddy_addr = addr ^ (1 << (PGSHIFT + order));中二进制大块地址低位都是0的原理，通过PGSHIFT 将运算从页为单位到字节为单位。
+#### （五）页释放：order从当前页大小到大释放，通过uintptr_t buddy_addr = addr ^ (1 << (PGSHIFT + order));中二进制大块地址低位都是0的原理，通过PGSHIFT 将运算从页为单位到字节为单位。
 ```c
 static void buddy_free_pages(struct Page *base, size_t n)
 {
@@ -757,9 +693,9 @@ static void buddy_free_pages(struct Page *base, size_t n)
 }
 ```
 
-## 三、测试样例
+### 三、测试样例
 
-### （一）测试多次小规模分配与释放
+#### （一）测试多次小规模分配与释放
 ```c
 // 测试多次小规模分配与释放
 static void buddy_check_1(void)
@@ -795,7 +731,7 @@ static void buddy_check_1(void)
 }
 ```
 
-### （二）测试大规模块分配与释放
+#### （二）测试大规模块分配与释放
 ```c
 // 测试大规模块分配与释放
 static void buddy_check_2(void)
@@ -827,7 +763,7 @@ static void buddy_check_2(void)
 }
 ```
 
-### （三）测试不同大小块的交替分配与释放
+#### （三）测试不同大小块的交替分配与释放
 ```c
 // 测试不同大小块的交替分配与释放
 static void buddy_check_3(void)
@@ -855,7 +791,7 @@ static void buddy_check_3(void)
 }
 ```
 
-### （四）测试边界条件，超出限制的分配应该失败
+#### （四）测试边界条件，超出限制的分配应该失败
 ```c
 // 测试边界条件，超出限制的分配应该失败
 static void buddy_check_4(void)
@@ -882,7 +818,7 @@ static void buddy_check_4(void)
 }
 ```
 
-### （五）测试多次快速分配和释放
+#### （五）测试多次快速分配和释放
 ```c
 // 测试多次快速分配和释放
 static void buddy_check_5(void)
@@ -910,7 +846,7 @@ static void buddy_check_5(void)
 }
 ```
 
-### （六）测试小块合并
+#### （六）测试小块合并
 ```c
 static void buddy_check_6(void)
 {
@@ -938,21 +874,228 @@ static void buddy_check_6(void)
     cprintf("伙伴系统测试6成功结束\n");
 }
 ```
- 
-#### 扩展练习Challenge：任意大小的内存单元slub分配算法（需要编程）
 
-slub算法，实现两层架构的高效内存单元分配，第一层是基于页大小的内存分配，第二层是在第一层基础上实现基于任意大小的内存分配。可简化实现，能够体现其主体思想即可。
+## 扩展练习Challenge：任意大小的内存单元slub分配算法（需要编程）
+>slub算法，实现两层架构的高效内存单元分配，第一层是基于页大小的内存分配，第二层是在第一层基础上实现基于任意大小的内存分配。可简化实现，能够体现其主体思想即可。
+>
+>- 参考[linux的slub分配算法/](https://github.com/torvalds/linux/blob/master/mm/slub.c)，在ucore中实现slub分配算法。要求有比较充分的测试用例说明实现的正确性，需要有设计文档。
 
- - 参考[linux的slub分配算法/](http://www.ibm.com/developerworks/cn/linux/l-cn-slub/)，在ucore中实现slub分配算法。要求有比较充分的测试用例说明实现的正确性，需要有设计文档。
+slub算法设计思路：
 
-#### 扩展练习Challenge：硬件的可用物理内存范围的获取方法（思考题）
-  - 如果 OS 无法提前知道当前硬件的可用物理内存范围，请问你有何办法让 OS 获取可用物理内存范围？
-# 硬件的可用物理内存范围的获取方法
+- slub (Simple List of Unused Blocks) 分配器旨在优化内存管理，通过将内存划分为适合不同大小块的“slab”，并使用链表来管理这些块。该实现支持基于页的较大内存分配以及页内的小块分配。通过使用页的属性标志，slub分配器可以有效地追踪和管理内存的分配与释放，避免了碎片问题，并通过合并相邻空闲块来提高内存利用率。
+- 在具体实现时，将内存分配分成两个部分，第一部分是对大内存进行分配，用于按整页分配内存，在这一部分采用first fit算法。第二部分是对小内存进行分配，用于对小于整页的内存进行分配。
 
-## 一、问题背景
+### 结构设计：
+定义了`SlubBlock` 结构体，用来分配处理小块内存的分配。
+
+``` c
+struct SlubBlock
+{
+    size_t size;            // 小块的大小
+    void *page;             // 指向分配的页面
+    struct SlubBlock *next; // 指向下一个小块
+};
+```
+
+### 算法实现：
+#### **分配内存**:
+
+当需要分配内存时，首先对需要分配内存的大小进行判断，如果内存大于一整页，则采用first fit 分配算法（基本与`default_pmm.c`中的`default_alloc_pages`函数一致，在此不过多展示。），如果小于一整页，则调用`slub_alloc_small`函数来分配内存。
+
+``` c
+static struct Page *slub_alloc(size_t size)
+{
+    size = size * PGSIZE;
+    if (size >= PGSIZE)
+    {
+        return slub_alloc_pages((size + PGSIZE - 1) / PGSIZE); // 大于一页时，直接分配整页
+    }
+
+    // 获取小块
+    void *small_block_ptr = slub_alloc_small(size);
+    if (small_block_ptr)
+    {
+        struct SlubBlock *block = (struct SlubBlock *)small_block_ptr - 1;
+        return block->page; // 返回关联的页面
+    }
+
+    return NULL; // 分配失败
+}
+
+```
+
+我们定义了一个全局变量用于存储分配小块内存后剩下的内存，如下所示。`slub_block`是小块内存链表的“头节点”，用于辅助管理小块内存，它指向整个小块内存块链表的开头。链表中的每个节点表示一个小块内存块，通过 `next` 指针链接在一起。在分配和释放小块时，`slub_alloc_small` 和 `slub_free_small` 函数都会从 `slub_block` 开始遍历，以找到合适的内存块。最后需要注意的是，`slub_block` 的 `size` 和 `page` 成员可是以不赋值或赋特殊值，因为它不代表真实的可用内存块，而是管理和引导链表中的其他块。
+
+```c
+struct SlubBlock slub_block;
+```
+
+`slub_alloc_small` 函数实现了 SLUB 分配器中针对小块内存的分配逻辑。该函数用于从小块内存链表中找到一个足够大的块并返回给用户，如果没有足够大的块，则会调用first fit 分配算法分配一个新的页面并将其分割为小块。
+
+``` c
+
+static void *slub_alloc_small(float size)
+{
+    // int index = get_block_index(size);
+    size_t total_size = size * PGSIZE; // 计算总大小
+    struct SlubBlock *temp = &slub_block;
+    while (temp->next != &slub_block)
+    {
+        if (temp->size >= total_size)
+        {
+            struct SlubBlock *block = temp->next;
+            temp->next = block->next;
+            return (void *)(block + 1);
+        }
+        else
+        {
+            temp = temp->next;
+        }
+    }
+    // 没有找到匹配项
+    struct Page *page = slub_alloc_pages(1); // 分配一个页
+    if (page == NULL)
+    {
+        return NULL; // 分配失败
+    }
+    struct SlubBlock *current_block = (struct SlubBlock *)page; // 获取页面指针
+    current_block->size = 0;                                    // 设置大小
+    slub_free_small((void *)(current_block + 1), 1);
+    return (void *)(current_block + 1);
+}
+
+```
+
+#### 释放内存：
+
+```c
+
+static void slub_free(struct Page *ptr, size_t size)
+{
+    size *= PGSIZE;
+    if (size >= PGSIZE)
+    {
+        slub_free_pages(ptr, (size + PGSIZE - 1) / PGSIZE); // 释放整页
+    }
+    else
+    {
+        slub_free_small(ptr, size); // 释放小块
+    }
+}
+```
+
+在释放内存时，也需要分两种情况进行讨论：
+
+- 如果页面大于一页，则调用大页的释放函数，具体实现与`default_pmm.c`中的` default_free_pages`函数一致，在此不过多展示。
+- 如果页面小于一页，则调用`slub_free_small`函数来释放内存。
+
+` slub_free_small`首先判断传入的指向要释放的内存的指针是否有效，然后将其转换为`SlubBlock` 结构体的指针，并向前偏移一个单位，获取对应块的元信息（如块的大小和页面指针）。这样做是因为 `ptr` 指向的是实际的数据部分，而 `SlubBlock` 的信息存储在其前面。然后更新当前小块中剩余内存的值，最后更新其在小块链表中的位置（小块链表实际上是按照大小排列的）。
+
+```c
+static void slub_free_small(void *ptr, size_t size)
+{
+    if (ptr == NULL)
+    {
+        return;
+    }
+    struct SlubBlock *block = (struct SlubBlock *)ptr - 1;
+    size_t total_size = size * PGSIZE;
+    block->size += total_size;
+    struct SlubBlock *temp = &slub_block;
+    while (temp->next != &slub_block)
+    {
+        if (temp->size <= block->size)
+        {
+            struct SlubBlock *next = temp->next;
+            if (next == &slub_block || next > block)
+            {
+                temp->next = block;
+                block->next = next;
+                return;
+            }
+            temp = temp->next;
+        }
+        else
+        {
+            temp = temp->next;
+        }
+    }
+}
+
+```
+
+#### 算法测试：
+
+测试分成两个部分：
+
+第一个部分是基础测试，主要用于对于大于一整页内存分配的测试，该测试与`default_pmm.c`文件中`basic_check`函数基本一致，在此不过多展示。
+
+第二个部分是对小于一整页内存分配的测试，测试样例如下，进行了64字节、128字节、256字节小块内存的分配和释放，以及重复大量64字节小块内存的分配和释放。
+
+``` c
+static void
+slub_check(void)
+{
+    cprintf("测试开始\n");
+    struct Page *p0, *p1, *p2;
+    p0 = p1 = p2 = NULL;
+    float size0 = 64 / PGSIZE;
+    float size1 = 128 / PGSIZE;
+    float size2 = 256 / PGSIZE;
+
+    assert((p0 = slub_alloc_small(size0)) != NULL);
+    cprintf("分配64字节测试通过\n");
+    assert((p1 = slub_alloc_small(size1)) != NULL);
+    cprintf("分配128字节测试通过\n");
+    assert((p2 = slub_alloc_small(size2)) != NULL);
+    cprintf("分配256字节测试通过\n");
+    slub_free_small(p0, size0);
+    cprintf("释放64字节测试通过\n");
+    slub_free_small(p1, size1);
+    cprintf("释放128字节测试通过\n");
+    slub_free_small(p2, size2);
+    cprintf("释放256字节测试通过\n");
+
+    cprintf("重复64字节分配测试开始\n");
+    for (int i = 0; i < 1000; i++)
+    {
+        void *ptr = slub_alloc_small(64 / PGSIZE);
+        assert(ptr != NULL);
+        slub_free_small(ptr, 64 / PGSIZE);
+    }
+    void *ptr[64];
+    for (int i = 0; i < 64; i++)
+    {
+        ptr[i] = slub_alloc_small(64 / PGSIZE);
+        assert(ptr[i] != NULL);
+    }
+    for (int i = 0; i < 64; i++)
+    {
+        slub_free_small(ptr[i], 64 / PGSIZE);
+    }
+    cprintf("重复64字节分配测试通过\n");
+    struct Page *page = slub_alloc(5); // 分配 5 页
+    assert(page != NULL);
+    slub_free_pages(page, 5); // 释放 5 页
+    cprintf("分配和释放5页测试通过\n");
+    cprintf("测试结束\n");
+}
+```
+
+最终整个测试结果如下图所示，测试样例成功通过。
+
+![image-20241027193509121](./res/1.png)
+
+
+
+## 扩展练习Challenge：硬件的可用物理内存范围的获取方法（思考题）
+>
+>- 如果 OS 无法提前知道当前硬件的可用物理内存范围，请问你有何办法让 OS 获取可用物理内存范围？
+
+### 一、问题背景
 如果OS无法提前知道当前硬件的可用物理内存范围，需要寻找方法让OS获取此信息。例如可用物理内存范围可能存在理论值如[0x80000000,0x88000000)，实际值如[0x0000000080200000, 0x0000000087ffffff]。
 
-## 二、获取可用物理内存范围的方法
+### 二、获取可用物理内存范围的方法
 1. **通过BIOS/UEFI固件获取内存映射信息**
    - **原理**：BIOS/UEFI在系统启动初期对硬件进行自检和初始化时，会获取到硬件的内存映射情况。这些信息可以被操作系统获取来了解可用物理内存范围。
    - **优点**：BIOS/UEFI能够全面地探测到硬件的初始内存布局，可靠性较高。
@@ -979,11 +1122,58 @@ slub算法，实现两层架构的高效内存单元分配，第一层是基于�
 
 现代操作系统通常使用BIOS/UEFI和ACPI表格来获取物理内存的布局信息，确保系统在启动时能够正确分配和管理内存资源。
 
-## 三、sv39相关内存定义
+## 知识点整理
+
+### （一）实验中重要的知识点与对应的OS原理
+1. **物理内存管理**
+在代码中，物理内存管理的实现通常通过结构体和函数来管理内存页的分配与释放。例如，`struct Page` 代表内存页，每个页面的属性（如是否可用、是否被使用等）由相应的位标志来管理。
+代码示例分析
+```c
+struct Page {
+    int property; // 页的属性标志
+    struct list_head page_link; // 链接到空闲列表
+};
+```
+​				这个结构体中的 `property` 用于标识页的状态，确保不同进程对内存的访问互不干扰。
+
+2. **虚拟地址与物理地址**
+在代码中，虚拟地址与物理地址的转换涉及页表的操作。通过查找页表，代码能够将虚拟地址转换为物理地址，并进行访问。
+代码示例分析
+```c
+struct Page *page = le2page(le, page_link); // 从链表节点获取页面
+```
+​				这段代码通过链表操作获取一个空闲页面，展示了如何通过结构体和链表管理物理内存。
+
+4. **多级页表**
+代码可能通过多个结构体和指针实现多级页表的概念。在多级页表中，每一层的页表项负责管理更大的地址空间。
+代码示例分析
+```c
+list_add(&free_area[order].free_list, &(buddy->page_link));
+```
+​				这行代码表示将一个空闲块加入到特定级别的空闲链表中，反映了多级页表的动态管理。
+
+5. 页表项 (PTE) 结构
+页表项结构通常在代码中以数组或结构体的形式存在，标记页的权限和状态。
+代码示例分析
+```c
+page->property = n; // 设置页的属性
+```
+​				这里，属性包括可读、可写等，直接影响页面的访问权限。
+
+6. 页表基址寄存器 (satp)
+尽管代码中未直接涉及 `satp`，但可以在页表的初始化和切换中找到相关逻辑。
+代码示例分析
+```c
+ClearPageProperty(page);
+```
+​				在进行页表操作前，代码可能需要清除标志，确保系统状态一致性。
+
+### （二）列出你认为OS原理中很重要，但在实验中没有对应上的知识点
+​				建立快表以加快访问效率。
+
+### （三）sv39相关内存定义
 1. **物理地址和虚拟地址**
    - 在sv39中，物理地址(Physical Address)有56位，而虚拟地址(Virtual Address)有39位。实际使用时，一个虚拟地址要占用64位，只有低39位有效，并且规定63−39位的值必须等于第38位的值（类似有符号整数的规则），否则该虚拟地址被认为不合法，访问时会产生异常。
 2. **satp寄存器**
    - satp里面存的不是最高级页表（三级页表的根节点）的起始物理地址，而是它所在的物理页号。
    - 1000表示sv39页表，对应的虚拟内存空间高达512GiB。
-
-> Challenges是选做，完成Challenge的同学可单独提交Challenge。完成得好的同学可获得最终考试成绩的加分。
