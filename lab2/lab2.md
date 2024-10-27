@@ -65,7 +65,176 @@ ClearPageProperty(page);
 
 #### 练习1：理解first-fit 连续物理内存分配算法（思考题）
 first-fit 连续物理内存分配算法作为物理内存分配一个很基础的方法，需要同学们理解它的实现过程。请大家仔细阅读实验手册的教程并结合`kern/mm/default_pmm.c`中的相关代码，认真分析default_init，default_init_memmap，default_alloc_pages， default_free_pages等相关函数，并描述程序在进行物理内存分配的过程以及各个函数的作用。
-请在实验报告中简要说明你的设计实现过程。请回答如下问题：
+请在实验报告中简要说明你的设计实现过程。
+以下是`first-fit`内存分配算法中的几个关键函数的详细讲解：
+
+### 1. `default_init`
+
+```c
+static void default_init(void) {
+    list_init(&free_list);
+    nr_free = 0;
+}
+```
+
+`default_init` 函数用于初始化空闲内存块的链表和空闲页的总数：
+
+- **`list_init(&free_list);`**：将 `free_list` 初始化为空的双向链表，用于记录所有空闲内存块。
+- **`nr_free = 0;`**：将总空闲页数量 `nr_free` 设置为 0，初始状态没有任何可用的内存页。
+
+此函数确保在开始分配内存之前，系统有一个空的链表和清零的统计值，方便后续管理空闲页。
+
+### 2. `default_init_memmap`
+
+```c
+static void default_init_memmap(struct Page *base, size_t n) {
+    assert(n > 0);
+    struct Page *p = base;
+    for (; p != base + n; p++) {
+        assert(PageReserved(p));
+        p->flags = p->property = 0;
+        set_page_ref(p, 0);
+    }
+    base->property = n;
+    SetPageProperty(base);
+    nr_free += n;
+
+    if (list_empty(&free_list)) {
+        list_add(&free_list, &(base->page_link));
+    } else {
+        list_entry_t* le = &free_list;
+        while ((le = list_next(le)) != &free_list) {
+            struct Page* page = le2page(le, page_link);
+            if (base < page) {
+                list_add_before(le, &(base->page_link));
+                break;
+            } else if (list_next(le) == &free_list) {
+                list_add(le, &(base->page_link));
+            }
+        }
+    }
+}
+```
+
+`default_init_memmap` 函数初始化一个连续的空闲内存块，设置该块中的页面状态并将其加入到 `free_list` 链表中：
+
+- **页面初始化**：循环遍历该块中的每个页面 `p`，清除它们的标志位和属性（`p->flags = 0;`），重置引用计数。
+- **设置块属性**：将该块的第一个页面（`base`）的 `property` 设置为整个块的页面数量 `n`，并设置 `PG_property` 标志，表示这是一个有效的空闲块。
+- **更新总空闲页数**：将 `n` 加入 `nr_free` 中，更新系统中空闲页的总数。
+- **按地址排序插入链表**：将 `base` 页面按地址顺序插入到 `free_list` 中，这样可以方便后续内存的释放和合并。
+
+### 3. `default_alloc_pages`
+
+```c
+static struct Page *default_alloc_pages(size_t n) {
+    assert(n > 0);
+    if (n > nr_free) {
+        return NULL;
+    }
+    struct Page *page = NULL;
+    list_entry_t *le = &free_list;
+    while ((le = list_next(le)) != &free_list) {
+        struct Page *p = le2page(le, page_link);
+        if (p->property >= n) {
+            page = p;
+            break;
+        }
+    }
+    if (page != NULL) {
+        list_entry_t* prev = list_prev(&(page->page_link));
+        list_del(&(page->page_link));
+        if (page->property > n) {
+            struct Page *p = page + n;
+            p->property = page->property - n;
+            SetPageProperty(p);
+            list_add(prev, &(p->page_link));
+        }
+        nr_free -= n;
+        ClearPageProperty(page);
+    }
+    return page;
+}
+```
+
+`default_alloc_pages` 函数从 `free_list` 中找到第一个满足请求大小 `n` 的空闲块并分配内存：
+
+- **寻找空闲块**：通过遍历 `free_list` 中的每个块，找到第一个 `property >= n` 的块 `p`。
+- **块分配**：如果找到合适的块 `p`：
+  - 如果块大小 `property` 大于请求大小 `n`，则分割块：分配前 `n` 个页面给用户，剩余部分重新作为空闲块插入 `free_list`。
+  - 更新 `nr_free` 减少分配的页面数。
+  - 清除分配的块的 `PG_property` 标志，表示这部分不再是空闲块。
+
+### 4. `default_free_pages`
+
+```c
+static void default_free_pages(struct Page *base, size_t n) {
+    assert(n > 0);
+    struct Page *p = base;
+    for (; p != base + n; p++) {
+        assert(!PageReserved(p) && !PageProperty(p));
+        p->flags = 0;
+        set_page_ref(p, 0);
+    }
+    base->property = n;
+    SetPageProperty(base);
+    nr_free += n;
+
+    if (list_empty(&free_list)) {
+        list_add(&free_list, &(base->page_link));
+    } else {
+        list_entry_t* le = &free_list;
+        while ((le = list_next(le)) != &free_list) {
+            struct Page* page = le2page(le, page_link);
+            if (base < page) {
+                list_add_before(le, &(base->page_link));
+                break;
+            } else if (list_next(le) == &free_list) {
+                list_add(le, &(base->page_link));
+            }
+        }
+    }
+
+    list_entry_t* le = list_prev(&(base->page_link));
+    if (le != &free_list) {
+        p = le2page(le, page_link);
+        if (p + p->property == base) {
+            p->property += base->property;
+            ClearPageProperty(base);
+            list_del(&(base->page_link));
+            base = p;
+        }
+    }
+
+    le = list_next(&(base->page_link));
+    if (le != &free_list) {
+        p = le2page(le, page_link);
+        if (base + base->property == p) {
+            base->property += p->property;
+            ClearPageProperty(p);
+            list_del(&(p->page_link));
+        }
+    }
+}
+```
+
+`default_free_pages` 函数释放内存，将 `n` 个页面插入到 `free_list` 中并合并相邻空闲块：
+
+- **重置页面属性**：遍历 `base` 到 `base + n` 的页面，将它们的标志位和引用计数重置，并设置 `base` 的 `property` 为 `n`。
+- **插入链表**：将 `base` 按地址顺序插入 `free_list`。
+- **合并块**：检查 `base` 前后的块是否为空闲块，如果是，则进行合并，并更新合并后的 `property` 值。
+
+### 5. `default_nr_free_pages`
+
+```c
+static size_t default_nr_free_pages(void) {
+    return nr_free;
+}
+```
+
+`default_nr_free_pages` 函数返回当前系统中空闲页面的总数，即 `nr_free` 的值。
+
+这些函数协同工作，实现了 `first-fit` 分配算法的基本流程，从而有效管理内存的分配和回收。
+请回答如下问题：
 - 你的first fit算法是否有进一步的改进空间？
 1. 短期优化：可以立即通过按块大小排序的方式优化当前双向链表结构，这能显著提高查找效率，避免地址线性遍历的开销。
 2. 长期优化：引入更复杂的数据结构如红黑树、跳表或分离空闲链表结构可以进一步提升内存分配和释放的效率。这些方法可以减少查找和插入空闲块时的时间复杂度，使得内存管理系统更高效、灵活。
