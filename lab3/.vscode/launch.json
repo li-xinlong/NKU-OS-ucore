@@ -1,0 +1,33 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug OS",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/bin/kernel",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceRoot}",
+            "environment": [],
+            "externalConsole": true,
+            "miDebuggerServerAddress": "localhost:1234", // 指定 GDB 服务器
+            "serverLaunchTimeout": 2000,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/home/woo/riscv64-unknown-elf-toolchain-10.2.0-2020.12.8-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-gdb", // GDB 路径
+            //"preLaunchTask": "Run QEMU with GDB",  // 在调试前运行 QEMU
+            "setupCommands": [
+                {
+                    "description": "Enable assembly view",
+                    "text": "set disassemble-next-line on", // 显示汇编代码
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set architecture to RISC-V",
+                    "text": "set arch riscv:rv64", // 设置架构为 RISC-V 64 位
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}
