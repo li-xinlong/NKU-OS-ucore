@@ -66,23 +66,39 @@ _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, in
  *                            then set the addr of addr of this page to ptr_page.
  */
 static int
-_clock_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick)
+_clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
 {
-    list_entry_t *head = (list_entry_t *)mm->sm_priv;
-    assert(head != NULL);
-    assert(in_tick == 0);
-    /* Select the victim */
-    //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
-    //(2)  set the addr of addr of this page to ptr_page
-    while (1)
-    {
-        /*LAB3 EXERCISE 4: 2212599 2212294 2212045*/
+     list_entry_t *head=(list_entry_t*) mm->sm_priv;
+         assert(head != NULL);
+     assert(in_tick==0);
+     /* Select the victim */
+     //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
+     //(2)  set the addr of addr of this page to ptr_page
+    while (1) {
+        /*LAB3 EXERCISE 4: YOUR CODE*/ 
         // 编写代码
         // 遍历页面链表pra_list_head，查找最早未被访问的页面
+        curr_ptr = list_next(curr_ptr);
+        if(curr_ptr == head) {
+            curr_ptr = list_next(curr_ptr);
+            if(curr_ptr == head) {
+                *ptr_page = NULL;
+                break;
+            }
+        }
         // 获取当前页面对应的Page结构指针
+        struct Page* page = le2page(curr_ptr, pra_page_link);
         // 如果当前页面未被访问，则将该页面从页面链表中删除，并将该页面指针赋值给ptr_page作为换出页面
         // 如果当前页面已被访问，则将visited标志置为0，表示该页面已被重新访问
-    }
+        if(!page->visited) {
+            *ptr_page = page;
+            list_del(curr_ptr);
+            cprintf("curr_ptr %p\n",curr_ptr);
+            break;
+        } else {
+            page->visited = 0;
+        }
+    }       
     return 0;
 }
 static int
