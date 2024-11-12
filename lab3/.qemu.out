@@ -23,9 +23,9 @@ PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
 
 Special kernel symbols:
   entry  0xc0200032 (virtual)
-  etext  0xc0204466 (virtual)
+  etext  0xc02044a6 (virtual)
   edata  0xc020a040 (virtual)
-  end    0xc0211564 (virtual)
+  end    0xc021156c (virtual)
 Kernel executable memory footprint: 70KB
 memory management: default_pmm_manager
 membegin 80200000 memend 88000000 mem_size 7e00000
@@ -95,25 +95,6 @@ swap_in: load disk swap entry 2 with swap_page in vadr 0x1000
 count is 1, total is 8
 check_swap() succeeded!
 ++ setup timer interrupts
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
-100 ticks
 100 ticks
 100 ticks
 100 ticks
