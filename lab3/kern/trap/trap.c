@@ -14,7 +14,7 @@
 
 #define TICK_NUM 100
 volatile size_t num=0;
-// ticks声明clock.h在中
+
 static void print_ticks() {
     cprintf("%d ticks\n", TICK_NUM);
 #ifdef DEBUG_GRADE
@@ -147,21 +147,17 @@ void interrupt_handler(struct trapframe *tf) {
             // read-only." -- privileged spec1.9.1, 4.1.4, p59
             // In fact, Call sbi_set_timer will clear STIP, or you can clear it
             // directly.
-            // cprintf("Supervisor timer interrupt\n");
-             /* LAB1 EXERCISE2   2212599 2212294 2212045 :  */
-            /*(1)设置下次时钟中断- clock_set_next_event()
-             *(2)计数器（ticks）加一
-             *(3)当计数器加到100的时候，我们会输出一个`100ticks`表示我们触发了100次时钟中断，同时打印次数（num）加一
-            * (4)判断打印次数，当打印次数为10时，调用<sbi.h>中的关机函数关机
-            */
+            // clear_csr(sip, SIP_STIP);
             clock_set_next_event();
-            ticks+=1;
-            if(ticks%TICK_NUM==0){
-                num+=1;
-                print_ticks();
-                if(num==10){
-                    sbi_shutdown();
-                }
+            static int ticks = 0;
+            ticks++;
+            if (ticks % TICK_NUM == 0){
+            num++;
+            print_ticks();
+            }
+            
+            if (num == 10){
+            sbi_shutdown();
             }
             break;
         case IRQ_H_TIMER:
@@ -202,15 +198,7 @@ void exception_handler(struct trapframe *tf) {
             cprintf("Illegal instruction\n");
             break;
         case CAUSE_BREAKPOINT:
-            //断点异常处理
-            /* LAB1 CHALLLENGE3   2212599 2212294 2212045 :  */
-            /*(1)输出指令异常类型（ breakpoint）
-             *(2)输出异常指令地址
-             *(3)更新 tf->epc寄存器
-            */
-            cprintf("Exception type:breakpoint\n");
-            cprintf("指令地址: 0x%08x\n", tf->epc);
-            tf->epc += 2;
+            cprintf("Breakpoint\n");
             break;
         case CAUSE_MISALIGNED_LOAD:
             cprintf("Load address misaligned\n");

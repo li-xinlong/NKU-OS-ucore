@@ -392,96 +392,61 @@ static void check_alloc_page(void) {
 }
 
 static void check_pgdir(void) {
-    // 断言：物理内存页面数量不超过内核内存大小除以页面大小
     // assert(npage <= KMEMSIZE / PGSIZE);
-    // RISC-V 内存从 2GB 开始，因此 npage 总是大于 KMEMSIZE / PGSIZE
+    // The memory starts at 2GB in RISC-V
+    // so npage is always larger than KMEMSIZE / PGSIZE
     size_t nr_free_store;
 
     nr_free_store=nr_free_pages();
 
-    // 断言：物理内存页面数量不超过内核顶部地址除以页面大小
     assert(npage <= KERNTOP / PGSIZE);
-    // 断言：页目录指针不为空，且页目录的偏移量为 0
-    assert(boot_pgdir!= NULL && (uint32_t)PGOFF(boot_pgdir) == 0);
-    // 断言：获取页目录中地址为 0 的页失败（应该为空）
+    assert(boot_pgdir != NULL && (uint32_t)PGOFF(boot_pgdir) == 0);
     assert(get_page(boot_pgdir, 0x0, NULL) == NULL);
 
     struct Page *p1, *p2;
-    // 分配一个页
     p1 = alloc_page();
-    // 将页 p1 插入到页目录 boot_pgdir 中，地址为 0x0，权限为 0
     assert(page_insert(boot_pgdir, p1, 0x0, 0) == 0);
     pte_t *ptep;
-    // 获取页目录 boot_pgdir 中地址为 0x0 的页表项
-    assert((ptep = get_pte(boot_pgdir, 0x0, 0))!= NULL);
-    // 断言：页表项指向的页是 p1
+    assert((ptep = get_pte(boot_pgdir, 0x0, 0)) != NULL);
     assert(pte2page(*ptep) == p1);
-    // 断言：页 p1 的引用计数为 1
     assert(page_ref(p1) == 1);
 
-    // 获取页目录 boot_pgdir 的第一个页表的物理地址
     ptep = (pte_t *)KADDR(PDE_ADDR(boot_pgdir[0]));
-    // 获取页目录 boot_pgdir 的第一个页表的第二项的物理地址
     ptep = (pte_t *)KADDR(PDE_ADDR(ptep[0])) + 1;
-    // 断言：获取到的页表项地址与通过 get_pte 函数获取的地址相同
     assert(get_pte(boot_pgdir, PGSIZE, 0) == ptep);
 
-    // 分配一个页
     p2 = alloc_page();
-    // 将页 p2 插入到页目录 boot_pgdir 中，地址为 PGSIZE，权限为 PTE_U | PTE_W
     assert(page_insert(boot_pgdir, p2, PGSIZE, PTE_U | PTE_W) == 0);
-    // 获取页目录 boot_pgdir 中地址为 PGSIZE 的页表项
-    assert((ptep = get_pte(boot_pgdir, PGSIZE, 0))!= NULL);
-    // 断言：页表项设置了 PTE_U 和 PTE_W 标志
+    assert((ptep = get_pte(boot_pgdir, PGSIZE, 0)) != NULL);
     assert(*ptep & PTE_U);
     assert(*ptep & PTE_W);
-    // 断言：页目录的第一个页表项设置了 PTE_U 标志
     assert(boot_pgdir[0] & PTE_U);
-    // 断言：页 p2 的引用计数为 1
     assert(page_ref(p2) == 1);
 
-    // 将页 p1 再次插入到页目录 boot_pgdir 中，地址为 PGSIZE，权限为 0
     assert(page_insert(boot_pgdir, p1, PGSIZE, 0) == 0);
-    // 断言：页 p1 的引用计数为 2
     assert(page_ref(p1) == 2);
-    // 断言：页 p2 的引用计数为 0
     assert(page_ref(p2) == 0);
-    // 获取页目录 boot_pgdir 中地址为 PGSIZE 的页表项
-    assert((ptep = get_pte(boot_pgdir, PGSIZE, 0))!= NULL);
-    // 断言：页表项指向的页是 p1
+    assert((ptep = get_pte(boot_pgdir, PGSIZE, 0)) != NULL);
     assert(pte2page(*ptep) == p1);
-    // 断言：页表项没有设置 PTE_U 标志
     assert((*ptep & PTE_U) == 0);
 
-    // 从页目录 boot_pgdir 中移除地址为 0x0 的页
     page_remove(boot_pgdir, 0x0);
-    // 断言：页 p1 的引用计数为 1
     assert(page_ref(p1) == 1);
-    // 断言：页 p2 的引用计数为 0
     assert(page_ref(p2) == 0);
 
-    // 从页目录 boot_pgdir 中移除地址为 PGSIZE 的页
     page_remove(boot_pgdir, PGSIZE);
-    // 断言：页 p1 的引用计数为 0
     assert(page_ref(p1) == 0);
-    // 断言：页 p2 的引用计数为 0
     assert(page_ref(p2) == 0);
 
-    // 断言：页目录的第一个页表的引用计数为 1
     assert(page_ref(pde2page(boot_pgdir[0])) == 1);
 
     pde_t *pd1=boot_pgdir,*pd0=page2kva(pde2page(boot_pgdir[0]));
-    // 释放页目录的第一个页表的物理页
     free_page(pde2page(pd0[0]));
-    // 释放页目录的第一个页表的物理页
     free_page(pde2page(pd1[0]));
-    // 将页目录的第一个页表项清零
     boot_pgdir[0] = 0;
 
-    // 断言：空闲页面数量与检查前相同
     assert(nr_free_store==nr_free_pages());
 
-    // 打印检查通过信息
     cprintf("check_pgdir() succeeded!\n");
 }
 
