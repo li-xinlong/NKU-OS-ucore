@@ -29,10 +29,13 @@ _lru_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int 
     list_entry_t *entry = &(page->pra_page_link);
 
     assert(entry != NULL && curr_ptr != NULL);
-
+    if (entry->prev != NULL)
+    {
+        list_del(entry);
+    }
     // 将页面插入到队列的末尾
-    list_add_before((list_entry_t*)mm->sm_priv, entry);
-    page->visited = 1;
+    list_add_before((list_entry_t *)mm->sm_priv, entry);
+    // page->visited = 1;
 
     // 打印调试信息，确保与Clock算法一致
     cprintf("map_swappable: Added page at addr 0x%lx to the swap queue\n", addr);
@@ -46,37 +49,29 @@ _lru_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int 
 static int
 _lru_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick)
 {
-    list_entry_t *head = (list_entry_t*)mm->sm_priv;
+    list_entry_t *head = (list_entry_t *)mm->sm_priv;
     assert(head != NULL);
     assert(in_tick == 0);
 
-    while (1) {
+    curr_ptr = list_next(curr_ptr);
+    if (curr_ptr == head)
+    {
         curr_ptr = list_next(curr_ptr);
-        if (curr_ptr == head) {
-            curr_ptr = list_next(curr_ptr);
-            if (curr_ptr == head) {
-                *ptr_page = NULL;
-                return 0;
-            }
-        }
-
-        struct Page *page = le2page(curr_ptr, pra_page_link);
-
-        // 如果页面没有被访问过，说明是最久未访问的页面，选中它并从队列中删除
-        if (!page->visited) {
-            *ptr_page = page;
-            list_del(curr_ptr);
-
-            // 打印调试信息，确保与Clock算法一致
-            cprintf("curr_ptr %p\n", curr_ptr);
-            cprintf("swap_out: i 0, store page in vaddr 0x%lx to disk swap entry 2\n", (uintptr_t)page);
-
+        if (curr_ptr == head)
+        {
+            *ptr_page = NULL;
             return 0;
-        } else {
-            // 如果页面被访问过，重置访问标志
-            page->visited = 0;
         }
     }
+
+    struct Page *page = le2page(curr_ptr, pra_page_link);
+
+    *ptr_page = page;
+    list_del(curr_ptr);
+
+    // 打印调试信息，确保与Clock算法一致
+    cprintf("curr_ptr %p\n", curr_ptr);
+    cprintf("swap_out: i 0, store page in vaddr 0x%lx to disk swap entry 2\n", (uintptr_t)page);
 
     return 0;
 }
@@ -87,40 +82,40 @@ _lru_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick)
 static int
 _lru_check_swap(void)
 {
-    cprintf("write Virt Page c in fifo_check_swap\n");
+    cprintf("write Virt Page c in lru_swap\n");
     *(unsigned char *)0x3000 = 0x0c;
     assert(pgfault_num == 4);
-    cprintf("write Virt Page a in fifo_check_swap\n");
+    cprintf("write Virt Page a in lru_swap\n");
     *(unsigned char *)0x1000 = 0x0a;
     assert(pgfault_num == 4);
-    cprintf("write Virt Page d in fifo_check_swap\n");
+    cprintf("write Virt Page d in lru_swap\n");
     *(unsigned char *)0x4000 = 0x0d;
     assert(pgfault_num == 4);
-    cprintf("write Virt Page b in fifo_check_swap\n");
+    cprintf("write Virt Page b in lru_swap\n");
     *(unsigned char *)0x2000 = 0x0b;
     assert(pgfault_num == 4);
-    cprintf("write Virt Page e in fifo_check_swap\n");
+    cprintf("write Virt Page e in lru_swap\n");
     *(unsigned char *)0x5000 = 0x0e;
     assert(pgfault_num == 5);
-    cprintf("write Virt Page b in fifo_check_swap\n");
+    cprintf("write Virt Page b in lru_swap\n");
     *(unsigned char *)0x2000 = 0x0b;
     assert(pgfault_num == 5);
-    cprintf("write Virt Page a in fifo_check_swap\n");
+    cprintf("write Virt Page a in lru_swap\n");
     *(unsigned char *)0x1000 = 0x0a;
     assert(pgfault_num == 6);
-    cprintf("write Virt Page b in fifo_check_swap\n");
+    cprintf("write Virt Page b in lru_swap\n");
     *(unsigned char *)0x2000 = 0x0b;
     assert(pgfault_num == 7);
-    cprintf("write Virt Page c in fifo_check_swap\n");
+    cprintf("write Virt Page c in lru_swap\n");
     *(unsigned char *)0x3000 = 0x0c;
     assert(pgfault_num == 8);
-    cprintf("write Virt Page d in fifo_check_swap\n");
+    cprintf("write Virt Page d in lru_swap\n");
     *(unsigned char *)0x4000 = 0x0d;
     assert(pgfault_num == 9);
-    cprintf("write Virt Page e in fifo_check_swap\n");
+    cprintf("write Virt Page e in lru_swap\n");
     *(unsigned char *)0x5000 = 0x0e;
     assert(pgfault_num == 10);
-    cprintf("write Virt Page a in fifo_check_swap\n");
+    cprintf("write Virt Page a in lru_swap\n");
     assert(*(unsigned char *)0x1000 == 0x0a);
     *(unsigned char *)0x1000 = 0x0a;
     assert(pgfault_num == 11);
@@ -152,13 +147,13 @@ _lru_tick_event(struct mm_struct *mm)
  * LRU Swap Manager 实现
  */
 struct swap_manager swap_manager_lru =
-{
-    .name            = "lru swap manager",
-    .init            = &_lru_init,
-    .init_mm         = &_lru_init_mm,
-    .tick_event      = &_lru_tick_event,
-    .map_swappable   = &_lru_map_swappable,
-    .set_unswappable = &_lru_set_unswappable,
-    .swap_out_victim = &_lru_swap_out_victim,
-    .check_swap      = &_lru_check_swap,
+    {
+        .name = "lru swap manager",
+        .init = &_lru_init,
+        .init_mm = &_lru_init_mm,
+        .tick_event = &_lru_tick_event,
+        .map_swappable = &_lru_map_swappable,
+        .set_unswappable = &_lru_set_unswappable,
+        .swap_out_victim = &_lru_swap_out_victim,
+        .check_swap = &_lru_check_swap,
 };

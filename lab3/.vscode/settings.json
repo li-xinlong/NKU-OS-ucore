@@ -2,5 +2,6 @@
     "files.associations": {
         "list.h": "c",
         "pmm.h": "c"
-    }
+    },
+    "marscode.chatLanguage": "cn"
 }
