@@ -46,7 +46,6 @@ _clock_init_mm(struct mm_struct *mm)
     mm->sm_priv = &pra_list_head;
     // 返回 0 表示初始化成功
     return 0;
-
 }
 /*
  * (3)_fifo_map_swappable: According FIFO PRA, we should link the most recent arrival page at the back of pra_list_head qeueue
@@ -69,33 +68,35 @@ _clock_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, in
     page->visited = 1;
     // 返回 0 表示操作成功
     return 0;
-
 }
 /*
  *  (4)_fifo_swap_out_victim: According FIFO PRA, we should unlink the  earliest arrival page in front of pra_list_head qeueue,
  *                            then set the addr of addr of this page to ptr_page.
  */
 static int
-_clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tick)
+_clock_swap_out_victim(struct mm_struct *mm, struct Page **ptr_page, int in_tick)
 {
-     list_entry_t *head=(list_entry_t*) mm->sm_priv;
-         assert(head != NULL);
-     assert(in_tick==0);
-     /* Select the victim */
-     //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
-     //(2)  set the addr of addr of this page to ptr_page
-    while (1) {
-        /*LAB3 EXERCISE 4: YOUR CODE*/ 
+    list_entry_t *head = (list_entry_t *)mm->sm_priv;
+    assert(head != NULL);
+    assert(in_tick == 0);
+    /* Select the victim */
+    //(1)  unlink the  earliest arrival page in front of pra_list_head qeueue
+    //(2)  set the addr of addr of this page to ptr_page
+    while (1)
+    {
+        /*LAB3 EXERCISE 4: 2212599 2212294 2212045*/
         // 编写代码
         // 遍历页面链表pra_list_head，查找最早未被访问的页面
         // 将当前指针移动到下一个位置
         curr_ptr = list_next(curr_ptr);
         // 如果当前指针回到了头部，说明已经遍历了整个链表
-        if(curr_ptr == head) {
+        if (curr_ptr == head)
+        {
             // 再次移动当前指针到下一个位置
             curr_ptr = list_next(curr_ptr);
             // 如果当前指针再次回到了头部，说明链表中没有未被访问的页面
-            if(curr_ptr == head) {
+            if (curr_ptr == head)
+            {
                 // 将换出页面指针设置为空，表示没有找到合适的换出页面
                 *ptr_page = NULL;
                 // 返回 0 表示没有找到换出页面
@@ -104,27 +105,29 @@ _clock_swap_out_victim(struct mm_struct *mm, struct Page ** ptr_page, int in_tic
         }
 
         // 获取当前页面对应的Page结构指针
-        struct Page* page = le2page(curr_ptr, pra_page_link);
+        struct Page *page = le2page(curr_ptr, pra_page_link);
         // 如果当前页面未被访问，则将该页面从页面链表中删除，并将该页面指针赋值给ptr_page作为换出页面
         // 如果当前页面已被访问，则将visited标志置为0，表示该页面已被重新访问
         // 如果页面未被访问，则将其标记为换出页面
-        if(!page->visited) {
+        if (!page->visited)
+        {
             // 将当前页面设置为换出页面
             *ptr_page = page;
             // 将当前页面从链表中删除
             list_del(curr_ptr);
             // 打印当前指针的值，用于调试
-            cprintf("curr_ptr %p\n",curr_ptr);
+            cprintf("curr_ptr %p\n", curr_ptr);
             // 返回 0 表示操作成功
             return 0;
-        } 
+        }
         // 如果页面被访问过，则将其访问位重置为 0
-        else {
+        else
+        {
             // 将页面的访问标志置为0，表示该页面未被访问
             page->visited = 0;
         }
-    }       
-       
+    }
+
     return 0;
 }
 static int

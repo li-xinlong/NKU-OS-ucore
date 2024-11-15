@@ -9,12 +9,17 @@
 #include <mmu.h>
 
 // the valid vaddr for check is between 0~CHECK_VALID_VADDR-1
+// CHECK_VALID_VIR_PAGE_NUM：指定虚拟地址空间检查的页数。
 #define CHECK_VALID_VIR_PAGE_NUM 5
+// BEING_CHECK_VALID_VADDR：指定检查开始的虚拟地址。
 #define BEING_CHECK_VALID_VADDR 0X1000
+// CHECK_VALID_VADDR：指定检查结束的虚拟地址。
 #define CHECK_VALID_VADDR (CHECK_VALID_VIR_PAGE_NUM + 1) * 0x1000
 // the max number of valid physical page for check
+// CHECK_VALID_PHY_PAGE_NUM：指定物理页面检查的数量。
 #define CHECK_VALID_PHY_PAGE_NUM 4
 // the max access seq number
+// MAX_SEQ_NO：限制访问序列的最大次数。
 #define MAX_SEQ_NO 10
 
 static struct swap_manager *sm;
