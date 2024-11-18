@@ -273,7 +273,7 @@ get_pte() 函数的主要目的是查找或创建与特定线性地址相关的�
 
 > - 比较Clock页替换算法和FIFO算法的不同。
 
-![img](https://nankai.feishu.cn/space/api/box/stream/download/asynccode/?code=MWFjMjk4NThiY2U3MGM5ZmJhMmFhNmU0YjFmN2FlZDZfcXVMbzBlUDdKNWp3V1lhTTJpRHhKWFZKTEJqUHBFMkpfVG9rZW46T0xhZGJlNE81b0w5MUt4eUttQmMyaDd1bjVnXzE3MzE4OTgwNTI6MTczMTkwMTY1Ml9WNA)
+![img](./res/1.png)
 
 Clock页替换算法和FIFO页替换算法在实现方式和性能上有显著的不同，以下是两者的比较：
 
