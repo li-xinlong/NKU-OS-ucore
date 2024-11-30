@@ -195,7 +195,16 @@ void proc_run(struct proc_struct *proc)
          *   lcr3():                   Modify the value of CR3 register
          *   switch_to():              Context switching between two processes
          */
-    }
+       bool intr_flag;
+       struct proc_struct *prev = current, *next = proc;
+       local_intr_save(intr_flag);
+       {
+            current = proc;
+            lcr3(proc->cr3);
+            switch_to(&(prev->context), &(next->context));
+       }
+       local_intr_restore(intr_flag);
+           }
 }
 
 // forkret -- the first kernel entry point of a new thread/process
