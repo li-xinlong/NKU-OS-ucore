@@ -342,6 +342,41 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
     //    6. call wakeup_proc to make the new child process RUNNABLE
     //    7. set ret vaule using child proc's pid
 
+    // 1. 调用 alloc_proc 分配一个进程控制块
+    if ((proc = alloc_proc()) == NULL) {
+        goto fork_out;
+    }
+    
+    // 2. 调用 setup_kstack 为进程分配一个内核栈
+    if (setup_kstack(proc) != 0) {
+        goto bad_fork_cleanup_proc;
+    }
+    
+    // 3. 调用 copy_mm 根据 clone_flags 复制或共享内存管理信息
+    if (copy_mm(clone_flags, proc) != 0) {
+        goto bad_fork_cleanup_kstack;
+    }
+    
+    // 4. 调用 copy_thread 复制原进程的上下文信息
+    copy_thread(proc, stack, tf);
+    
+    // 5. 将新进程插入到进程hash列表和进程列表中
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        proc->pid = get_pid();
+        hash_proc(proc);
+        list_add(&proc_list, &(proc->list_link));
+        nr_process++;
+    }
+    local_intr_restore(intr_flag);
+    
+    // 6. 将新进程设置为就绪状态
+    wakeup_proc(proc);
+    
+    // 7. 返回新进程的pid
+    ret = proc->pid;
+    
 fork_out:
     return ret;
 
