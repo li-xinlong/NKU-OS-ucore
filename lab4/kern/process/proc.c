@@ -59,20 +59,27 @@ SYS_getpid      : get the process's pid
 */
 
 // the process set's list
+// proc_list 是一个全局变量，用来管理当前所有的进程。
 list_entry_t proc_list;
 
+// 哈希表的大小
 #define HASH_SHIFT 10
+// 1024，哈希表大小
 #define HASH_LIST_SIZE (1 << HASH_SHIFT)
+// 获取hash后的值
 #define pid_hashfn(x) (hash32(x, HASH_SHIFT))
 
 // has list for process set based on pid
 static list_entry_t hash_list[HASH_LIST_SIZE];
 
 // idle proc
+// 指向一个特殊的进程结构，用来表示系统的空闲进程（idle）
 struct proc_struct *idleproc = NULL;
 // init proc
+// 指向系统的第一个用户态进程（init），由内核在启动阶段创建。initproc 通常是用户态所有进程的祖先（它是 PID=1 的进程）。
 struct proc_struct *initproc = NULL;
 // current proc
+// 指向当前正在 CPU 上运行的进程。每次进程切换时，current 会更新为切换后的目标进程。
 struct proc_struct *current = NULL;
 
 static int nr_process = 0;
@@ -88,7 +95,7 @@ alloc_proc(void)
     struct proc_struct *proc = kmalloc(sizeof(struct proc_struct));
     if (proc != NULL)
     {
-        // LAB4:EXERCISE1 YOUR CODE
+        // LAB4:EXERCISE1 2212599 2212294 2212045
         /*
          * below fields in proc_struct need to be initialized
          *       enum proc_state state;                      // Process state
@@ -105,7 +112,7 @@ alloc_proc(void)
          *       char name[PROC_NAME_LEN + 1];               // Process name
          */
         proc->state = PROC_UNINIT;
-        proc->pid = -1;
+        proc->pid = -1; //-1表示尚未分配pid
         proc->runs = 0;
         proc->kstack = 0;
         proc->need_resched = 0;
@@ -115,12 +122,12 @@ alloc_proc(void)
         proc->tf = NULL;
         proc->cr3 = boot_cr3;
         proc->flags = 0;
-        memset(proc->name, 0, (PROC_NAME_LEN + 1));
+        memset(proc->name, 0, PROC_NAME_LEN);
     }
     return proc;
 }
 
-// set_proc_name - set the name of proc
+// set_proc_name - 设置进程的名称
 char *
 set_proc_name(struct proc_struct *proc, const char *name)
 {
@@ -128,7 +135,7 @@ set_proc_name(struct proc_struct *proc, const char *name)
     return memcpy(proc->name, name, PROC_NAME_LEN);
 }
 
-// get_proc_name - get the name of proc
+// get_proc_name - 获取进程的名称
 char *
 get_proc_name(struct proc_struct *proc)
 {
@@ -137,10 +144,11 @@ get_proc_name(struct proc_struct *proc)
     return memcpy(name, proc->name, PROC_NAME_LEN);
 }
 
-// get_pid - alloc a unique pid for process
+// get_pid - 为进程分配一个唯一的pid
 static int
 get_pid(void)
 {
+    // 确保进程 ID（PID）的最大值大于系统中允许的最大进程数。这样可以保证每个进程都能分配到一个唯一的 PID
     static_assert(MAX_PID > MAX_PROCESS);
     struct proc_struct *proc;
     list_entry_t *list = &proc_list, *le;
@@ -156,6 +164,7 @@ get_pid(void)
         next_safe = MAX_PID;
     repeat:
         le = list;
+        // 遍历全局进程链表 proc_list，检查当前所有进程是否正在使用 last_pid。
         while ((le = list_next(le)) != list)
         {
             proc = le2proc(le, list_link);
@@ -180,31 +189,37 @@ get_pid(void)
     return last_pid;
 }
 
-// proc_run - make process "proc" running on cpu
-// NOTE: before call switch_to, should load  base addr of "proc"'s new PDT
+// proc_run - 使进程 "proc" 在 CPU 上运行
+// 注意：在调用 switch_to 之前，应加载 "proc" 的新 PDT 的基地址
 void proc_run(struct proc_struct *proc)
 {
+    // 判断目标进程是否是当前正在运行的进程
     if (proc != current)
     {
-        // LAB4:EXERCISE3 YOUR CODE
+        // LAB4:EXERCISE3 2212599 2212294 2212045
         /*
-         * Some Useful MACROs, Functions and DEFINEs, you can use them in below implementation.
-         * MACROs or Functions:
-         *   local_intr_save():        Disable interrupts
-         *   local_intr_restore():     Enable Interrupts
-         *   lcr3():                   Modify the value of CR3 register
-         *   switch_to():              Context switching between two processes
+         * 一些有用的宏、函数和定义，你可以在下面的实现中使用它们。
+         * 宏或函数：
+         *   local_intr_save()：       禁用中断
+         *   local_intr_restore()：    启用中断
+         *   lcr3()：                  修改 CR3 寄存器的值
+         *   switch_to()：             在两个进程之间进行上下文切换
          */
-       bool intr_flag;
-       struct proc_struct *prev = current, *next = proc;
-       local_intr_save(intr_flag);
-       {
+        bool intr_flag;
+        struct proc_struct *prev = current, *next = proc;
+        local_intr_save(intr_flag);
+        {
             current = proc;
+            /*RISC-V 中的 SATP 寄存器用于存储当前进程的页表基址。
+            当操作系统进行进程切换时，目标进程的页表基址需要被加载到 SATP 寄存器中。
+            这样，新的进程在执行时，CPU 会使用目标进程的页表来进行虚拟地址到物理地址的映射，从而确保新进程的内存访问是正确的。
+            */
             lcr3(proc->cr3);
+
             switch_to(&(prev->context), &(next->context));
-       }
-       local_intr_restore(intr_flag);
-           }
+        }
+        local_intr_restore(intr_flag);
+    }
 }
 
 // forkret -- the first kernel entry point of a new thread/process
@@ -316,7 +331,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
         goto fork_out;
     }
     ret = -E_NO_MEM;
-    // LAB4:EXERCISE2 YOUR CODE
+    // LAB4:EXERCISE2 2212599 2212294 2212045
     /*
      * Some Useful MACROs, Functions and DEFINEs, you can use them in below implementation.
      * MACROs or Functions:
@@ -343,23 +358,26 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
     //    7. set ret vaule using child proc's pid
 
     // 1. 调用 alloc_proc 分配一个进程控制块
-    if ((proc = alloc_proc()) == NULL) {
+    if ((proc = alloc_proc()) == NULL)
+    {
         goto fork_out;
     }
-    
+
     // 2. 调用 setup_kstack 为进程分配一个内核栈
-    if (setup_kstack(proc) != 0) {
+    if (setup_kstack(proc) != 0)
+    {
         goto bad_fork_cleanup_proc;
     }
-    
+
     // 3. 调用 copy_mm 根据 clone_flags 复制或共享内存管理信息
-    if (copy_mm(clone_flags, proc) != 0) {
+    if (copy_mm(clone_flags, proc) != 0)
+    {
         goto bad_fork_cleanup_kstack;
     }
-    
+
     // 4. 调用 copy_thread 复制原进程的上下文信息
     copy_thread(proc, stack, tf);
-    
+
     // 5. 将新进程插入到进程hash列表和进程列表中
     bool intr_flag;
     local_intr_save(intr_flag);
@@ -370,13 +388,13 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
         nr_process++;
     }
     local_intr_restore(intr_flag);
-    
+
     // 6. 将新进程设置为就绪状态
     wakeup_proc(proc);
-    
+
     // 7. 返回新进程的pid
     ret = proc->pid;
-    
+
 fork_out:
     return ret;
 
