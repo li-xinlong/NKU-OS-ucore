@@ -274,12 +274,19 @@ int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags)
     // 初始化一个进程的栈
     struct trapframe tf;
     memset(&tf, 0, sizeof(struct trapframe));
-    tf.gpr.s0 = (uintptr_t)fn;
-    tf.gpr.s1 = (uintptr_t)arg;
+    // 设置内核线程的参数和函数指针
+    tf.gpr.s0 = (uintptr_t)fn;  // s0 寄存器保存函数指针
+    tf.gpr.s1 = (uintptr_t)arg; // s1 寄存器保存函数参数
+
+    // 设置 trapframe 中的 status 寄存器（SSTATUS）
+    // SSTATUS_SPP：Supervisor Previous Privilege（设置为 supervisor 模式，因为这是一个内核线程）
+    // SSTATUS_SPIE：Supervisor Previous Interrupt Enable（设置为启用中断，因为这是一个内核线程）
+    // SSTATUS_SIE：Supervisor Interrupt Enable（设置为禁用中断，因为我们不希望该线程被中断）
     tf.status = (read_csr(sstatus) | SSTATUS_SPP | SSTATUS_SPIE) & ~SSTATUS_SIE;
+    // 将入口点（epc）设置为 kernel_thread_entry 函数，作用实际上是将pc指针指向它(*trapentry.S会用到)
     // tf.epc 是 trapframe 结构中的程序计数器寄存器，它指定了内核线程执行时的入口地址。
     tf.epc = (uintptr_t)kernel_thread_entry;
-
+    // 使用 do_fork 创建一个新进程（内核线程），这样才真正用设置的tf创建新进程。
     return do_fork(clone_flags | CLONE_VM, 0, &tf);
 }
 
