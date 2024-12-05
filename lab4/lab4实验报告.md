@@ -63,17 +63,17 @@ static struct proc_struct *alloc_proc(void)
 > 请在实验报告中简要说明你的设计实现过程。
 
 1. **进程控制块分配**：  
-   -  调用 alloc_proc() 分配进程控制块，失败返回 -E_NO_FREE_PROC
+   -  调用 `alloc_proc()` 分配进程控制块，失败返回 `-E_NO_FREE_PROC`
 2. **内核栈分配**：  
-   -  调用 setup_kstack() 分配内核栈，失败则释放进程控制块
+   -  调用 `setup_kstack()` 分配内核栈，失败则释放进程控制块
 3. **复制进程内存信息**：  
-   -  调用 copy_mm() 处理内存管理结构，对内核线程，直接返回 0
+   -  调用 `copy_mm()` 处理内存管理结构，对内核线程，直接返回 0
 4. **复制父进程上下文**：  
-   -  调用 copy_thread() 设置新进程的 trapframe 和上下文，设置入口函数、栈指针等
+   -  调用 `copy_thread()` 设置新进程的 `trapframe` 和上下文，设置入口函数、栈指针等
 5. **进程注册**：  
-   -  获取 PID，将进程加入 hash_list 和 proc_list，原子操作确保安全
+   -  获取 `PID`，将进程加入 `hash_list` 和 `proc_list`，原子操作确保安全
 6. **激活进程**：  
-   -  调用 wakeup_proc() 将进程设置为就绪状态
+   -  调用 `wakeup_proc()` 将进程设置为就绪状态
 
 ```C++
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf){
@@ -163,9 +163,11 @@ get_pid() 函数使用两个静态变量：last_pid 用于记录上次分配的 
 - initproc：这个子内核线程的工作就是输出一些字符串，然后就返回了
 
 最终`make qemu`执行后的输出如下：
+
 ![Alt Text](./src/1.png)
 
 最终`make grade`执行后的输出如下：
+
 ![Alt Text](./src/2.png)
 
 ### 扩展练习 Challenge：
