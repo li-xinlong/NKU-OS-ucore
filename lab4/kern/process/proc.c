@@ -119,18 +119,18 @@ alloc_proc(void)
          *       uint32_t flags;                             // Process flag
          *       char name[PROC_NAME_LEN + 1];               // Process name
          */
-        proc->state = PROC_UNINIT;
-        proc->pid = -1; //-1表示尚未分配pid
-        proc->runs = 0;
-        proc->kstack = 0;
-        proc->need_resched = 0;
-        proc->parent = NULL;
-        proc->mm = NULL;
+        proc->state = PROC_UNINIT; // 设置进程为“未初始化”状态——即第0个内核线程（空闲进程idleproc）
+        proc->pid = -1;            // 设置进程PID为未初始化值，即-1
+        proc->runs = 0;            // 根据提示可知该成员变量表示进程的运行时间，初始化为0
+        proc->kstack = 0;          // 进程内核栈初始化为空【kstack记录了分配给该进程/线程的内核栈的位置】
+        proc->need_resched = 0;    // 是否需要重新调度以释放 CPU？当然了，我们现在处于未初始化状态，不需要进行调度
+        proc->parent = NULL;       // 父进程控制块指针，第0个进程控制块诶，没有父进程
+        proc->mm = NULL;           // 进程的内存管理字段:参见lab3练习一分析；对于内核进程而言，不存在虚拟内存管理
         memset(&(proc->context), 0, sizeof(struct context));
-        proc->tf = NULL;
-        proc->cr3 = boot_cr3;
-        proc->flags = 0;
-        memset(proc->name, 0, PROC_NAME_LEN);
+        proc->tf = NULL;                      // 进程中断帧，初始化为空，发生中断时修改
+        proc->cr3 = boot_cr3;                 // 页表基址初始化——在pmm_init中初始化页表基址，实际上是satp寄存器
+        proc->flags = 0;                      // 进程标志位，初始化为空
+        memset(proc->name, 0, PROC_NAME_LEN); // 进程名初始化为空
     }
     return proc;
 }
