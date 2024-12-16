@@ -18,13 +18,17 @@ struct Page *pages;
 // amount of physical memory (in pages)
 size_t npage = 0;
 // The kernel image is mapped at VA=KERNBASE and PA=info.base
+// va_pa_offset 是虚拟地址（Virtual Address）和物理地址（Physical Address）之间的偏移量。
 uint_t va_pa_offset;
 // memory starts at 0x80000000 in RISC-V
+// nbase 是从物理内存基地址（DRAM_BASE）到第一个页框的偏移量
 const size_t nbase = DRAM_BASE / PGSIZE;
 
 // virtual address of boot-time page directory
+// boot_pgdir 是一个指针，指向操作系统启动时的页目录
 pde_t *boot_pgdir = NULL;
 // physical address of boot-time page directory
+// boot_cr3 表示启动时页目录的物理地址，通常会存储在 CPU 的 CR3 寄存器中。
 uintptr_t boot_cr3;
 
 // physical memory management
@@ -35,31 +39,36 @@ static void check_pgdir(void);
 static void check_boot_pgdir(void);
 
 // init_pmm_manager - initialize a pmm_manager instance
-static void init_pmm_manager(void) {
+static void init_pmm_manager(void)
+{
     pmm_manager = &default_pmm_manager;
     cprintf("memory management: %s\n", pmm_manager->name);
     pmm_manager->init();
 }
 
 // init_memmap - call pmm->init_memmap to build Page struct for free memory
-static void init_memmap(struct Page *base, size_t n) {
+static void init_memmap(struct Page *base, size_t n)
+{
     pmm_manager->init_memmap(base, n);
 }
 
 // alloc_pages - call pmm->alloc_pages to allocate a continuous n*PAGESIZE
 // memory
-struct Page *alloc_pages(size_t n) {
+struct Page *alloc_pages(size_t n)
+{
     struct Page *page = NULL;
     bool intr_flag;
 
-    while (1) {
+    while (1)
+    {
         local_intr_save(intr_flag);
         {
             page = pmm_manager->alloc_pages(n);
         }
         local_intr_restore(intr_flag);
 
-        if (page != NULL || n > 1 || swap_init_ok == 0) break;
+        if (page != NULL || n > 1 || swap_init_ok == 0)
+            break;
 
         extern struct mm_struct *check_mm_struct;
         // cprintf("page %x, call swap_out in alloc_pages %d\n",page, n);
@@ -70,7 +79,8 @@ struct Page *alloc_pages(size_t n) {
 }
 
 // free_pages - call pmm->free_pages to free a continuous n*PAGESIZE memory
-void free_pages(struct Page *base, size_t n) {
+void free_pages(struct Page *base, size_t n)
+{
     bool intr_flag;
     local_intr_save(intr_flag);
     {
@@ -81,7 +91,8 @@ void free_pages(struct Page *base, size_t n) {
 
 // nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE)
 // of current free memory
-size_t nr_free_pages(void) {
+size_t nr_free_pages(void)
+{
     size_t ret;
     bool intr_flag;
     local_intr_save(intr_flag);
@@ -93,7 +104,8 @@ size_t nr_free_pages(void) {
 }
 
 /* pmm_init - initialize the physical memory management */
-static void page_init(void) {
+static void page_init(void)
+{
     extern char kern_entry[];
 
     va_pa_offset = KERNBASE - 0x80200000;
@@ -108,7 +120,8 @@ static void page_init(void) {
 
     uint64_t maxpa = mem_end;
 
-    if (maxpa > KERNTOP) {
+    if (maxpa > KERNTOP)
+    {
         maxpa = KERNTOP;
     }
 
@@ -120,7 +133,8 @@ static void page_init(void) {
     // so stay away from it by adding extra offset to end
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
 
-    for (size_t i = 0; i < npage - nbase; i++) {
+    for (size_t i = 0; i < npage - nbase; i++)
+    {
         SetPageReserved(pages + i);
     }
 
@@ -128,47 +142,63 @@ static void page_init(void) {
 
     mem_begin = ROUNDUP(freemem, PGSIZE);
     mem_end = ROUNDDOWN(mem_end, PGSIZE);
-    if (freemem < mem_end) {
+    if (freemem < mem_end)
+    {
         init_memmap(pa2page(mem_begin), (mem_end - mem_begin) / PGSIZE);
     }
-    cprintf("vapaofset is %llu\n",va_pa_offset);
+    cprintf("vapaofset is %llu\n", va_pa_offset);
 }
 
-// boot_map_segment - setup&enable the paging mechanism
-// parameters
-//  la:   linear address of this memory need to map (after x86 segment map)
-//  size: memory size
-//  pa:   physical address of this memory
-//  perm: permission of this memory
+// boot_map_segment - 设置并启用分页机制
+// 参数：
+//  la：需要映射的线性地址（在x86段映射之后）
+//  size：内存大小
+//  pa：物理地址
+//  perm：内存的权限
+/*
+实现了分页机制的一个核心功能：将虚拟地址（Linear Address, LA）映射到物理地址（Physical Address, PA），
+并为每个映射设置权限（perm）*/
 static void boot_map_segment(pde_t *pgdir, uintptr_t la, size_t size,
-                             uintptr_t pa, uint32_t perm) {
+                             uintptr_t pa, uint32_t perm)
+{
+    // 检查虚拟地址和物理地址的页内偏移量是否一致。
     assert(PGOFF(la) == PGOFF(pa));
+    // 计算需要映射的页数
     size_t n = ROUNDUP(size + PGOFF(la), PGSIZE) / PGSIZE;
+    // 将虚拟地址和物理地址都向下对齐到页边界
     la = ROUNDDOWN(la, PGSIZE);
     pa = ROUNDDOWN(pa, PGSIZE);
-    for (; n > 0; n--, la += PGSIZE, pa += PGSIZE) {
+    // 循环映射每一页
+    for (; n > 0; n--, la += PGSIZE, pa += PGSIZE)
+    {
+        // 获取虚拟地址对应的页表项
         pte_t *ptep = get_pte(pgdir, la, 1);
         assert(ptep != NULL);
+        // 设置页表项的内容，包括物理页号和权限
         *ptep = pte_create(pa >> PGSHIFT, PTE_V | perm);
     }
 }
 
-// boot_alloc_page - allocate one page using pmm->alloc_pages(1)
-// return value: the kernel virtual address of this allocated page
-// note: this function is used to get the memory for PDT(Page Directory
-// Table)&PT(Page Table)
-static void *boot_alloc_page(void) {
+// boot_alloc_page - 使用pmm->alloc_pages(1)分配一页内存
+// 返回值：分配的内核虚拟地址
+// 用于在启动时分配一页内存，并返回该内存页的内核虚拟地址。
+// 注意：此函数用于获取PDT（页目录表）和PT（页表）的内存
+static void *boot_alloc_page(void)
+{
     struct Page *p = alloc_page();
-    if (p == NULL) {
+    if (p == NULL)
+    {
         panic("boot_alloc_page failed.\n");
     }
+    // 将 struct Page 类型的物理页面指针 p 转换为对应的内核虚拟地址。
     return page2kva(p);
 }
 
 // pmm_init - setup a pmm to manage physical memory, build PDT&PT to setup
 // paging mechanism
 //         - check the correctness of pmm & paging mechanism, print PDT&PT
-void pmm_init(void) {
+void pmm_init(void)
+{
     // We need to alloc/free the physical memory (granularity is 4KB or other
     // size).
     // So a framework of physical memory manager (struct pmm_manager)is defined
@@ -189,7 +219,7 @@ void pmm_init(void) {
 
     // create boot_pgdir, an initial page directory(Page Directory Table, PDT)
     extern char boot_page_table_sv39[];
-    boot_pgdir = (pte_t*)boot_page_table_sv39;
+    boot_pgdir = (pte_t *)boot_page_table_sv39;
     boot_cr3 = PADDR(boot_pgdir);
 
     check_pgdir();
@@ -200,91 +230,132 @@ void pmm_init(void) {
     // check the correctness of the basic virtual memory map.
     check_boot_pgdir();
 
-
     kmalloc_init();
 }
 
-// get_pte - get pte and return the kernel virtual address of this pte for la
-//        - if the PT contians this pte didn't exist, alloc a page for PT
-// parameter:
-//  pgdir:  the kernel virtual base address of PDT
-//  la:     the linear address need to map
-//  create: a logical value to decide if alloc a page for PT
-// return vaule: the kernel virtual address of this pte
-pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create) {
+// get_pte - 获取pte并返回该pte的内核虚拟地址
+//        - 如果PT中不包含该pte，则为PT分配一个页面
+// 参数：
+//  pgdir：PDT的内核虚拟基地址
+//  la：需要映射的线性地址
+//  create：一个逻辑值，决定是否为PT分配一个页面
+// 返回值：该pte的内核虚拟地址
+pte_t *get_pte(pde_t *pgdir, uintptr_t la, bool create)
+{
+    // 获取PDT的一级页表项
     pde_t *pdep1 = &pgdir[PDX1(la)];
-    if (!(*pdep1 & PTE_V)) {
+    // 如果一级页表项不存在
+    if (!(*pdep1 & PTE_V))
+    {
         struct Page *page;
-        if (!create || (page = alloc_page()) == NULL) {
+        // 如果不需要创建或者无法分配页面，则返回空指针
+        if (!create || (page = alloc_page()) == NULL)
+        {
             return NULL;
         }
         set_page_ref(page, 1);
         uintptr_t pa = page2pa(page);
         memset(KADDR(pa), 0, PGSIZE);
+        // 创建一级页表项
         *pdep1 = pte_create(page2ppn(page), PTE_U | PTE_V);
     }
 
+    // 获取PDT的二级页表项
     pde_t *pdep0 = &((pde_t *)KADDR(PDE_ADDR(*pdep1)))[PDX0(la)];
-    if (!(*pdep0 & PTE_V)) {
+    // 如果二级页表项不存在
+    if (!(*pdep0 & PTE_V))
+    {
         struct Page *page;
-        if (!create || (page = alloc_page()) == NULL) {
+        // 如果不需要创建或者无法分配页面，则返回空指针
+        if (!create || (page = alloc_page()) == NULL)
+        {
             return NULL;
         }
         set_page_ref(page, 1);
         uintptr_t pa = page2pa(page);
         memset(KADDR(pa), 0, PGSIZE);
+        // 创建二级页表项
         *pdep0 = pte_create(page2ppn(page), PTE_U | PTE_V);
-        }
+    }
+    // 返回pte的内核虚拟地址
     return &((pte_t *)KADDR(PDE_ADDR(*pdep0)))[PTX(la)];
 }
 
 // get_page - get related Page struct for linear address la using PDT pgdir
-struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store) {
+/*
+用于根据给定的线性地址（la）查找并返回对应的 struct Page。
+它通过页目录（pgdir）查找相应的页表项（PTE），然后返回与该线性地址关联的页面结构。*/
+struct Page *get_page(pde_t *pgdir, uintptr_t la, pte_t **ptep_store)
+{
+    // 通过给定的页目录 pgdir 和线性地址 la 查找相应的页表项（PTE）。
     pte_t *ptep = get_pte(pgdir, la, 0);
-    if (ptep_store != NULL) {
+    // 如果 ptep_store 参数不为 NULL，将找到的页表项（ptep）保存到 ptep_store 中
+    if (ptep_store != NULL)
+    {
         *ptep_store = ptep;
     }
-    if (ptep != NULL && *ptep & PTE_V) {
+    if (ptep != NULL && *ptep & PTE_V)
+    {
         return pte2page(*ptep);
     }
     return NULL;
 }
 
-// page_remove_pte - free an Page sturct which is related linear address la
-//                - and clean(invalidate) pte which is related linear address la
-// note: PT is changed, so the TLB need to be invalidate
-static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
-    if (*ptep & PTE_V) {  //(1) check if this page table entry is
+/**
+ * 从页表中移除页表项，并释放相关的Page结构和清除（使无效）与线性地址la相关的页表项。
+ *
+ * @param pgdir 指向页目录表的指针
+ * @param la 线性地址
+ * @param ptep 指向页表项的指针
+ */
+static inline void page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep)
+{
+    if (*ptep & PTE_V)
+    { //(1) 检查该页表项是否有效
         struct Page *page =
-            pte2page(*ptep);  //(2) find corresponding page to pte
-        page_ref_dec(page);   //(3) decrease page reference
+            pte2page(*ptep); //(2) 找到与页表项对应的Page结构
+        page_ref_dec(page);  //(3) 减少Page的引用计数
         if (page_ref(page) ==
-            0) {  //(4) and free this page when page reference reachs 0
+            0)
+        { //(4) 当Page的引用计数为0时，释放该Page
             free_page(page);
         }
-        *ptep = 0;                  //(5) clear second page table entry
-        tlb_invalidate(pgdir, la);  //(6) flush tlb
+        *ptep = 0;                 //(5) 清除第二级页表项
+        tlb_invalidate(pgdir, la); //(6) 刷新TLB
     }
 }
 
-void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
+// unmap_range - 取消映射指定线性地址范围的页表项
+// 参数：
+//  pgdir：页目录表的内核虚拟基地址
+//  start：起始线性地址
+//  end：结束线性地址
+void unmap_range(pde_t *pgdir, uintptr_t start, uintptr_t end)
+{
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
 
-    do {
+    do
+    {
+        // 获取线性地址对应的页表项
         pte_t *ptep = get_pte(pgdir, start, 0);
-        if (ptep == NULL) {
+        if (ptep == NULL)
+        {
+            // 如果页表项不存在，则继续下一个页表项
             start = ROUNDDOWN(start + PTSIZE, PTSIZE);
             continue;
         }
-        if (*ptep != 0) {
+        if (*ptep != 0)
+        {
+            // 如果页表项不为0，则移除该页表项
             page_remove_pte(pgdir, start, ptep);
         }
         start += PGSIZE;
     } while (start != 0 && start < end);
 }
 
-void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
+void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end)
+{
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
 
@@ -293,40 +364,48 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
     pde_t *pd0, *pt, pde1, pde0;
     d1start = ROUNDDOWN(start, PDSIZE);
     d0start = ROUNDDOWN(start, PTSIZE);
-    do {
-        // level 1 page directory entry
+    do
+    {
+        // 一级页目录项
         pde1 = pgdir[PDX1(d1start)];
-        // if there is a valid entry, get into level 0
-        // and try to free all page tables pointed to by
-        // all valid entries in level 0 page directory,
-        // then try to free this level 0 page directory
-        // and update level 1 entry
-        if (pde1&PTE_V){
+        // 如果存在有效的页目录项，进入二级页表
+        // 尝试释放所有由有效的页目录项指向的二级页表
+        // 然后尝试释放该二级页表，并更新一级页目录项
+        if (pde1 & PTE_V)
+        {
             pd0 = page2kva(pde2page(pde1));
-            // try to free all page tables
+            // 尝试释放所有的二级页表
             free_pd0 = 1;
-            do {
+            do
+            {
                 pde0 = pd0[PDX0(d0start)];
-                if (pde0&PTE_V) {
+                if (pde0 & PTE_V)
+                {
                     pt = page2kva(pde2page(pde0));
-                    // try to free page table
+                    // 尝试释放页表
                     free_pt = 1;
-                    for (int i = 0;i <NPTEENTRY;i++)
-                        if (pt[i]&PTE_V){
+                    for (int i = 0; i < NPTEENTRY; i++)
+                    {
+                        if (pt[i] & PTE_V)
+                        {
                             free_pt = 0;
                             break;
                         }
-                    // free it only when all entry are already invalid
-                    if (free_pt) {
+                    }
+                    // 当所有的页表项都无效时才释放
+                    if (free_pt)
+                    {
                         free_page(pde2page(pde0));
                         pd0[PDX0(d0start)] = 0;
                     }
-                } else
+                }
+                else
                     free_pd0 = 0;
                 d0start += PTSIZE;
-            } while (d0start != 0 && d0start < d1start+PDSIZE && d0start < end);
-            // free level 0 page directory only when all pde0s in it are already invalid
-            if (free_pd0) {
+            } while (d0start != 0 && d0start < d1start + PDSIZE && d0start < end);
+            // 当所有的pde0都无效时才释放二级页表
+            if (free_pd0)
+            {
                 free_page(pde2page(pde1));
                 pgdir[PDX1(d1start)] = 0;
             }
@@ -335,67 +414,65 @@ void exit_range(pde_t *pgdir, uintptr_t start, uintptr_t end) {
         d0start = d1start;
     } while (d1start != 0 && d1start < end);
 }
-/* copy_range - copy content of memory (start, end) of one process A to another
- * process B
- * @to:    the addr of process B's Page Directory
- * @from:  the addr of process A's Page Directory
- * @share: flags to indicate to dup OR share. We just use dup method, so it
- * didn't be used.
+/* copy_range - 将进程A的内存内容（start，end）复制到进程B
+ * @to:    进程B的页目录的地址
+ * @from:  进程A的页目录的地址
+ * @share: 标志位，表示复制还是共享。我们只使用复制方法，所以它没有被使用。
  *
- * CALL GRAPH: copy_mm-->dup_mmap-->copy_range
+ * 调用图：copy_mm-->dup_mmap-->copy_range
  */
 int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
-               bool share) {
+               bool share)
+{
     assert(start % PGSIZE == 0 && end % PGSIZE == 0);
     assert(USER_ACCESS(start, end));
-    // copy content by page unit.
-    do {
-        // call get_pte to find process A's pte according to the addr start
+    // 按页单位复制内容。
+    do
+    {
+        // 调用get_pte根据地址start找到进程A的pte
         pte_t *ptep = get_pte(from, start, 0), *nptep;
-        if (ptep == NULL) {
+        if (ptep == NULL)
+        {
             start = ROUNDDOWN(start + PTSIZE, PTSIZE);
             continue;
         }
-        // call get_pte to find process B's pte according to the addr start. If
-        // pte is NULL, just alloc a PT
-        if (*ptep & PTE_V) {
-            if ((nptep = get_pte(to, start, 1)) == NULL) {
+        // 调用get_pte根据地址start找到进程B的pte。如果pte为NULL，就分配一个PT
+        if (*ptep & PTE_V)
+        {
+            if ((nptep = get_pte(to, start, 1)) == NULL)
+            {
                 return -E_NO_MEM;
             }
             uint32_t perm = (*ptep & PTE_USER);
-            // get page from ptep
+            // 从ptep中获取页
             struct Page *page = pte2page(*ptep);
-            // alloc a page for process B
+            // 为进程B分配一个页
             struct Page *npage = alloc_page();
             assert(page != NULL);
             assert(npage != NULL);
             int ret = 0;
             /* LAB5:EXERCISE2 YOUR CODE
-             * replicate content of page to npage, build the map of phy addr of
-             * nage with the linear addr start
+             * 复制页的内容到npage，建立phy addr和线性地址start的映射
              *
-             * Some Useful MACROs and DEFINEs, you can use them in below
-             * implementation.
-             * MACROs or Functions:
-             *    page2kva(struct Page *page): return the kernel vritual addr of
-             * memory which page managed (SEE pmm.h)
-             *    page_insert: build the map of phy addr of an Page with the
-             * linear addr la
-             *    memcpy: typical memory copy function
+             * 一些有用的宏和定义，你可以在下面的实现中使用它们。
+             * 宏或函数：
+             *    page2kva(struct Page *page)：返回page管理的内存的内核虚拟地址（参见pmm.h）
+             *    page_insert：建立phy addr和线性地址la的映射
+             *    memcpy：典型的内存复制函数
              *
-             * (1) find src_kvaddr: the kernel virtual address of page
-             * (2) find dst_kvaddr: the kernel virtual address of npage
-             * (3) memory copy from src_kvaddr to dst_kvaddr, size is PGSIZE
-             * (4) build the map of phy addr of  nage with the linear addr start
+             * (1) 找到src_kvaddr：页的内核虚拟地址
+             * (2) 找到dst_kvaddr：npage的内核虚拟地址
+             * (3) 从src_kvaddr复制内容到dst_kvaddr，大小为PGSIZE
+             * (4) 建立phy addr和npage的线性地址start的映射
              */
-            //1.找寻父进程的内核虚拟页地址
-			uintptr_t src_kvaddr = page2kva(page);
-            //2.找寻子进程的内核虚拟页地址   
-			uintptr_t dst_kvaddr = page2kva(npage);
-            //3.复制父进程内容到子进程 
-			memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
-            //4.建立物理地址与子进程的页地址起始位置的映射关系
-			ret = page_insert(to, npage, start, perm);
+            // 1.找寻父进程的内核虚拟页地址
+            uintptr_t src_kvaddr = page2kva(page);
+            // 2.找寻子进程的内核虚拟页地址
+            uintptr_t dst_kvaddr = page2kva(npage);
+            // 3.复制父进程内容到子进程
+            memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
+            // 4.建立物理地址与子进程的页地址起始位置的映射关系
+            ret = page_insert(to, npage, start, perm);
 
             assert(ret == 0);
         }
@@ -406,9 +483,11 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
 
 // page_remove - free an Page which is related linear address la and has an
 // validated pte
-void page_remove(pde_t *pgdir, uintptr_t la) {
+void page_remove(pde_t *pgdir, uintptr_t la)
+{
     pte_t *ptep = get_pte(pgdir, la, 0);
-    if (ptep != NULL) {
+    if (ptep != NULL)
+    {
         page_remove_pte(pgdir, la, ptep);
     }
 }
@@ -421,17 +500,23 @@ void page_remove(pde_t *pgdir, uintptr_t la) {
 //  perm:  the permission of this Page which is setted in related pte
 // return value: always 0
 // note: PT is changed, so the TLB need to be invalidate
-int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm) {
+int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm)
+{
     pte_t *ptep = get_pte(pgdir, la, 1);
-    if (ptep == NULL) {
+    if (ptep == NULL)
+    {
         return -E_NO_MEM;
     }
     page_ref_inc(page);
-    if (*ptep & PTE_V) {
+    if (*ptep & PTE_V)
+    {
         struct Page *p = pte2page(*ptep);
-        if (p == page) {
+        if (p == page)
+        {
             page_ref_dec(page);
-        } else {
+        }
+        else
+        {
             page_remove_pte(pgdir, la, ptep);
         }
     }
@@ -440,24 +525,29 @@ int page_insert(pde_t *pgdir, struct Page *page, uintptr_t la, uint32_t perm) {
     return 0;
 }
 
-// invalidate a TLB entry, but only if the page tables being
-// edited are the ones currently in use by the processor.
-void tlb_invalidate(pde_t *pgdir, uintptr_t la) {
+// 使TLB项无效，但仅当当前正在使用的页表是处理器当前正在使用的页表时。
+void tlb_invalidate(pde_t *pgdir, uintptr_t la)
+{
     asm volatile("sfence.vma %0" : : "r"(la));
 }
 
-// pgdir_alloc_page - call alloc_page & page_insert functions to
-//                  - allocate a page size memory & setup an addr map
-//                  - pa<->la with linear address la and the PDT pgdir
-struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm) {
+// pgdir_alloc_page - 调用alloc_page和page_insert函数来
+//                  - 分配一个页面大小的内存并设置地址映射
+//                  - pa<->la与线性地址la和PDT pgdir相关联
+struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm)
+{
     struct Page *page = alloc_page();
-    if (page != NULL) {
-        if (page_insert(pgdir, page, la, perm) != 0) {
+    if (page != NULL)
+    {
+        if (page_insert(pgdir, page, la, perm) != 0)
+        {
             free_page(page);
             return NULL;
         }
-        if (swap_init_ok) {
-            if (check_mm_struct != NULL) {
+        if (swap_init_ok)
+        {
+            if (check_mm_struct != NULL)
+            {
                 swap_map_swappable(check_mm_struct, la, page, 0);
                 page->pra_vaddr = la;
                 assert(page_ref(page) == 1);
@@ -465,12 +555,14 @@ struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm) {
                 // pra_link_next %x in pgdir_alloc_page\n", (page-pages),
                 // page->pra_vaddr,page->pra_page_link.prev,
                 // page->pra_page_link.next);
-            } else {  // now current is existed, should fix it in the future
-                // swap_map_swappable(current->mm, la, page, 0);
-                // page->pra_vaddr=la;
-                // assert(page_ref(page) == 1);
-                // panic("pgdir_alloc_page: no pages. now current is existed,
-                // should fix it in the future\n");
+            }
+            else
+            { // 现在current存在，将来应该修复它
+              // swap_map_swappable(current->mm, la, page, 0);
+              // page->pra_vaddr=la;
+              // assert(page_ref(page) == 1);
+              // panic("pgdir_alloc_page: no pages. now current is existed,
+              // should fix it in the future\n");
             }
         }
     }
@@ -478,18 +570,20 @@ struct Page *pgdir_alloc_page(pde_t *pgdir, uintptr_t la, uint32_t perm) {
     return page;
 }
 
-static void check_alloc_page(void) {
+static void check_alloc_page(void)
+{
     pmm_manager->check();
     cprintf("check_alloc_page() succeeded!\n");
 }
 
-static void check_pgdir(void) {
+static void check_pgdir(void)
+{
     // assert(npage <= KMEMSIZE / PGSIZE);
     // The memory starts at 2GB in RISC-V
     // so npage is always larger than KMEMSIZE / PGSIZE
     size_t nr_free_store;
 
-    nr_free_store=nr_free_pages();
+    nr_free_store = nr_free_pages();
 
     assert(npage <= KERNTOP / PGSIZE);
     assert(boot_pgdir != NULL && (uint32_t)PGOFF(boot_pgdir) == 0);
@@ -533,29 +627,30 @@ static void check_pgdir(void) {
 
     assert(page_ref(pde2page(boot_pgdir[0])) == 1);
 
-    pde_t *pd1=boot_pgdir,*pd0=page2kva(pde2page(boot_pgdir[0]));
+    pde_t *pd1 = boot_pgdir, *pd0 = page2kva(pde2page(boot_pgdir[0]));
     free_page(pde2page(pd0[0]));
     free_page(pde2page(pd1[0]));
     boot_pgdir[0] = 0;
     flush_tlb();
 
-    assert(nr_free_store==nr_free_pages());
+    assert(nr_free_store == nr_free_pages());
 
     cprintf("check_pgdir() succeeded!\n");
 }
 
-static void check_boot_pgdir(void) {
+static void check_boot_pgdir(void)
+{
     size_t nr_free_store;
     pte_t *ptep;
     int i;
 
-    nr_free_store=nr_free_pages();
+    nr_free_store = nr_free_pages();
 
-    for (i = ROUNDDOWN(KERNBASE, PGSIZE); i < npage * PGSIZE; i += PGSIZE) {
+    for (i = ROUNDDOWN(KERNBASE, PGSIZE); i < npage * PGSIZE; i += PGSIZE)
+    {
         assert((ptep = get_pte(boot_pgdir, (uintptr_t)KADDR(i), 0)) != NULL);
         assert(PTE_ADDR(*ptep) == i);
     }
-
 
     assert(boot_pgdir[0] == 0);
 
@@ -573,20 +668,21 @@ static void check_boot_pgdir(void) {
     *(char *)(page2kva(p) + 0x100) = '\0';
     assert(strlen((const char *)0x100) == 0);
 
-    pde_t *pd1=boot_pgdir,*pd0=page2kva(pde2page(boot_pgdir[0]));
+    pde_t *pd1 = boot_pgdir, *pd0 = page2kva(pde2page(boot_pgdir[0]));
     free_page(p);
     free_page(pde2page(pd0[0]));
     free_page(pde2page(pd1[0]));
     boot_pgdir[0] = 0;
     flush_tlb();
 
-    assert(nr_free_store==nr_free_pages());
+    assert(nr_free_store == nr_free_pages());
 
     cprintf("check_boot_pgdir() succeeded!\n");
 }
 
 // perm2str - use string 'u,r,w,-' to present the permission
-static const char *perm2str(int perm) {
+static const char *perm2str(int perm)
+{
     static char str[4];
     str[0] = (perm & PTE_U) ? 'u' : '-';
     str[1] = 'r';
@@ -595,41 +691,45 @@ static const char *perm2str(int perm) {
     return str;
 }
 
-// get_pgtable_items - In [left, right] range of PDT or PT, find a continuous
-// linear addr space
-//                  - (left_store*X_SIZE~right_store*X_SIZE) for PDT or PT
-//                  - X_SIZE=PTSIZE=4M, if PDT; X_SIZE=PGSIZE=4K, if PT
-// paramemters:
-//  left:        no use ???
-//  right:       the high side of table's range
-//  start:       the low side of table's range
-//  table:       the beginning addr of table
-//  left_store:  the pointer of the high side of table's next range
-//  right_store: the pointer of the low side of table's next range
-// return value: 0 - not a invalid item range, perm - a valid item range with
-// perm permission
+// get_pgtable_items - 在PDT或PT的[left, right]范围内，找到一个连续的线性地址空间
+//                  - (left_store*X_SIZE~right_store*X_SIZE) 用于PDT或PT
+//                  - X_SIZE=PTSIZE=4M，如果是PDT；X_SIZE=PGSIZE=4K，如果是PT
+// 参数：
+//  left：无用？？？
+//  right：表的高端范围
+//  start：表的低端范围
+//  table：表的起始地址
+//  left_store：表的下一个范围的高端指针
+//  right_store：表的下一个范围的低端指针
+// 返回值：0 - 不是无效的项范围，perm - 具有perm权限的有效项范围
 static int get_pgtable_items(size_t left, size_t right, size_t start,
                              uintptr_t *table, size_t *left_store,
-                             size_t *right_store) {
-    if (start >= right) {
+                             size_t *right_store)
+{
+    if (start >= right)
+    {
         return 0;
     }
-    while (start < right && !(table[start] & PTE_V)) {
+    while (start < right && !(table[start] & PTE_V))
+    {
         start++;
     }
-    if (start < right) {
-        if (left_store != NULL) {
+    if (start < right)
+    {
+        if (left_store != NULL)
+        {
             *left_store = start;
         }
         int perm = (table[start++] & PTE_USER);
-        while (start < right && (table[start] & PTE_USER) == perm) {
+        while (start < right && (table[start] & PTE_USER) == perm)
+        {
             start++;
         }
-        if (right_store != NULL) {
+        if (right_store != NULL)
+        {
             *right_store = start;
         }
         return perm;
     }
     return 0;
 }
-

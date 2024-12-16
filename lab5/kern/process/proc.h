@@ -6,16 +6,18 @@
 #include <trap.h>
 #include <memlayout.h>
 
-
 // process's state in his life cycle
-enum proc_state {
-    PROC_UNINIT = 0,  // uninitialized
-    PROC_SLEEPING,    // sleeping
-    PROC_RUNNABLE,    // runnable(maybe running)
-    PROC_ZOMBIE,      // almost dead, and wait parent proc to reclaim his resource
+enum proc_state
+{
+    PROC_UNINIT = 0, // uninitialized
+    PROC_SLEEPING,   // sleeping
+    PROC_RUNNABLE,   // runnable(maybe running)
+    PROC_ZOMBIE,     // almost dead, and wait parent proc to reclaim his resource
 };
-
-struct context {
+// 一共14个寄存器，寄存器可以分为调用者保存（caller-saved）寄存器和被调用者保存（callee-saved）寄存器。
+// 实际的进程切换过程中我们只需要保存被调用者保存寄存器
+struct context
+{
     uintptr_t ra;
     uintptr_t sp;
     uintptr_t s0;
@@ -31,40 +33,60 @@ struct context {
     uintptr_t s10;
     uintptr_t s11;
 };
-
-#define PROC_NAME_LEN               15
-#define MAX_PROCESS                 4096
-#define MAX_PID                     (MAX_PROCESS * 2)
-
+// 进程名称的最大长度
+#define PROC_NAME_LEN 15
+// 最大进程数量
+#define MAX_PROCESS 4096
+// 最大进程ID
+#define MAX_PID (MAX_PROCESS * 2)
+// 所有进程控制块的双向线性列表，proc_struct中的成员变量list_link将链接入这个链表中。
 extern list_entry_t proc_list;
-
-struct proc_struct {
-    enum proc_state state;                      // Process state
-    int pid;                                    // Process ID
-    int runs;                                   // the running times of Proces
-    uintptr_t kstack;                           // Process kernel stack
-    volatile bool need_resched;                 // bool value: need to be rescheduled to release CPU?
-    struct proc_struct *parent;                 // the parent process
-    struct mm_struct *mm;                       // Process's memory management field
-    struct context context;                     // Switch here to run process
-    struct trapframe *tf;                       // Trap frame for current interrupt
-    uintptr_t cr3;                              // CR3 register: the base addr of Page Directroy Table(PDT)
-    uint32_t flags;                             // Process flag
-    char name[PROC_NAME_LEN + 1];               // Process name
-    list_entry_t list_link;                     // Process link list 
-    list_entry_t hash_link;                     // Process hash list
-    int exit_code;                              // exit code (be sent to parent proc)
-    uint32_t wait_state;                        // waiting state
-    struct proc_struct *cptr, *yptr, *optr;     // relations between processes
+// 进程结构体
+struct proc_struct
+{
+    /**
+     * 进程的生命周期中的状态枚举。
+     * - PROC_UNINIT：未初始化状态，表示进程还未被创建或初始化。
+     * - PROC_SLEEPING：睡眠状态，表示进程正在等待某个事件的发生。
+     * - PROC_RUNNABLE：可运行状态，表示进程已经准备好运行，但还未被调度执行。
+     * - PROC_ZOMBIE：僵尸状态，表示进程已经执行完毕，但其父进程还未对其进行善后处理。
+     */
+    enum proc_state state;        // 进程状态
+    int pid;                      // 进程ID
+    int runs;                     // 运行次数
+    uintptr_t kstack;             // 进程内核栈
+    volatile bool need_resched;   // 是否需要重新调度释放CPU？
+    struct proc_struct *parent;   // 父进程
+    struct mm_struct *mm;         // 进程的内存管理字段
+    struct context context;       // 进程执行的上下文
+    struct trapframe *tf;         // 中断帧
+    uintptr_t cr3;                // CR3寄存器：页目录表（PDT）的基地址
+    uint32_t flags;               // 进程标志
+    char name[PROC_NAME_LEN + 1]; // 进程名称
+    list_entry_t list_link;       // 进程链表链接
+    list_entry_t hash_link;       // 进程哈希链表链接
+    int exit_code;                // 退出码（发送给父进程）
+    uint32_t wait_state;          // 等待状态
+    // proc->yptr 是当前进程的“年幼兄弟”指针，指向当前进程的下一个兄弟进程。
+    struct proc_struct *cptr, *yptr, *optr; // 进程之间的关系
 };
 
-#define PF_EXITING                  0x00000001      // getting shutdown
+#define PF_EXITING 0x00000001 // getting shutdown
 
-#define WT_CHILD                    (0x00000001 | WT_INTERRUPTED)
-#define WT_INTERRUPTED               0x80000000                    // the wait state could be interrupted
+#define WT_CHILD (0x00000001 | WT_INTERRUPTED)
+#define WT_INTERRUPTED 0x80000000 // the wait state could be interrupted
 
-
-#define le2proc(le, member)         \
+/**
+ * 将链表节点转换为进程结构体的宏
+ *
+ * 该宏用于将链表节点转换为进程结构体，通过给定的链表节点指针和进程结构体成员的偏移量，
+ * 返回对应的进程结构体指针。
+ *
+ * @param le 链表节点指针
+ * @param member 进程结构体成员的偏移量
+ * @return 对应的进程结构体指针
+ */
+#define le2proc(le, member) \
     to_struct((le), struct proc_struct, member)
 
 extern struct proc_struct *idleproc, *initproc, *current;
@@ -85,4 +107,3 @@ int do_execve(const char *name, size_t len, unsigned char *binary, size_t size);
 int do_wait(int pid, int *code_store);
 int do_kill(int pid);
 #endif /* !__KERN_PROCESS_PROC_H__ */
-

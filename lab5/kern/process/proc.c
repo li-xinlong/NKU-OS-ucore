@@ -149,38 +149,38 @@ get_proc_name(struct proc_struct *proc)
     return memcpy(name, proc->name, PROC_NAME_LEN);
 }
 
-// set_links - set the relation links of process
+// set_links - 设置进程的关系链接
 static void
 set_links(struct proc_struct *proc)
 {
-    list_add(&proc_list, &(proc->list_link));
-    proc->yptr = NULL;
-    if ((proc->optr = proc->parent->cptr) != NULL)
+    list_add(&proc_list, &(proc->list_link));      // 将进程添加到进程列表中
+    proc->yptr = NULL;                             // 将年幼兄弟指针设置为NULL
+    if ((proc->optr = proc->parent->cptr) != NULL) // 如果父进程有子进程
     {
-        proc->optr->yptr = proc;
+        proc->optr->yptr = proc; // 将父进程的子进程的年长兄弟指针设置为当前进程
     }
-    proc->parent->cptr = proc;
-    nr_process++;
+    proc->parent->cptr = proc; // 将父进程的子进程指针设置为当前进程
+    nr_process++;              // 增加进程数
 }
 
-// remove_links - clean the relation links of process
+// remove_links - 清除进程的关系链接
 static void
 remove_links(struct proc_struct *proc)
 {
-    list_del(&(proc->list_link));
-    if (proc->optr != NULL)
+    list_del(&(proc->list_link)); // 从进程列表中删除进程
+    if (proc->optr != NULL)       // 如果进程有一个年长的兄弟
     {
-        proc->optr->yptr = proc->yptr;
+        proc->optr->yptr = proc->yptr; // 更新年长兄弟的年轻兄弟指针
     }
-    if (proc->yptr != NULL)
+    if (proc->yptr != NULL) // 如果进程有一个年轻的兄弟
     {
-        proc->yptr->optr = proc->optr;
+        proc->yptr->optr = proc->optr; // 更新年轻兄弟的年长兄弟指针
     }
-    else
+    else // 如果进程没有年轻的兄弟
     {
-        proc->parent->cptr = proc->optr;
+        proc->parent->cptr = proc->optr; // 更新父进程的子进程指针为年长兄弟
     }
-    nr_process--;
+    nr_process--; // 减少进程数
 }
 
 // get_pid - alloc a unique pid for process
@@ -303,6 +303,8 @@ find_proc(int pid)
 // kernel_thread - create a kernel thread using "fn" function
 // NOTE: the contents of temp trapframe tf will be copied to
 //       proc->tf in do_fork-->copy_thread function
+// kernel_thread - 使用 "fn" 函数创建一个内核线程
+// 注意：临时 trapframe tf 的内容将被复制到 do_fork-->copy_thread 函数中的 proc->tf
 int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags)
 {
     struct trapframe tf;
@@ -315,6 +317,8 @@ int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags)
 }
 
 // setup_kstack - alloc pages with size KSTACKPAGE as process kernel stack
+// setup_kstack - alloc pages with size KSTACKPAGE as process kernel stack
+// 为进程分配内核栈空间
 static int
 setup_kstack(struct proc_struct *proc)
 {
@@ -335,6 +339,7 @@ put_kstack(struct proc_struct *proc)
 }
 
 // setup_pgdir - alloc one page as PDT
+// 用于设置进程的页目录（Page Directory）。它的作用是为指定的进程分配一页内存，并将该内存作为页目录表 (PDT)，同时初始化页目录表的内容。
 static int
 setup_pgdir(struct mm_struct *mm)
 {
@@ -359,36 +364,48 @@ put_pgdir(struct mm_struct *mm)
 
 // copy_mm - process "proc" duplicate OR share process "current"'s mm according clone_flags
 //         - if clone_flags & CLONE_VM, then "share" ; else "duplicate"
+// 主要用于处理进程内存空间的复制或共享。根据 clone_flags 标志来判断是复制内存（CLONE_VM 不设置）还是共享内存（CLONE_VM 设置）。
+// 如果是共享内存，则子进程将共享父进程的虚拟内存；如果是复制内存，则会为子进程创建一个新的内存空间并进行初始化。
 static int
 copy_mm(uint32_t clone_flags, struct proc_struct *proc)
 {
+    // oldmm 为当前进程的内存管理结构，oldmm 为 NULL 时表示当前进程是一个内核线程
+    // mm 为新进程的内存管理结构
     struct mm_struct *mm, *oldmm = current->mm;
 
     /* current is a kernel thread */
+    // 当前进程是一个内核线程，,不涉及用户空间的内存操作,因此直接返回 0
     if (oldmm == NULL)
     {
         return 0;
     }
+    /*
+    如果 clone_flags 中设置了 CLONE_VM，表示子进程和父进程共享内存空间（虚拟内存）。
+    因此，直接将 mm 设置为 oldmm（即父进程的内存描述符），然后跳转到 good_mm，后续将增加 mm 的引用计数。
+    */
     if (clone_flags & CLONE_VM)
     {
         mm = oldmm;
         goto good_mm;
     }
     int ret = -E_NO_MEM;
+    // 创建一个新的内存管理结构
     if ((mm = mm_create()) == NULL)
     {
         goto bad_mm;
     }
+    // 为新进程分配一个页目录表
     if (setup_pgdir(mm) != 0)
     {
         goto bad_pgdir_cleanup_mm;
     }
+    // 锁定父进程的内存结构（oldmm），然后通过 dup_mmap() 复制父进程的内存映射（VMA）到新进程 mm 中。复制完成后解锁父进程的内存结构。
     lock_mm(oldmm);
     {
         ret = dup_mmap(mm, oldmm);
     }
     unlock_mm(oldmm);
-
+    // 复制失败，释放新进程的页目录表并返回错误
     if (ret != 0)
     {
         goto bad_dup_cleanup_mmap;
@@ -410,16 +427,31 @@ bad_mm:
 
 // copy_thread - setup the trapframe on the  process's kernel stack top and
 //             - setup the kernel entry point and stack of process
+/*
+copy_thread 函数的作用是为新创建的进程设置内核栈和 trapframe（用于保存CPU寄存器状态的结构体），
+并设置进程的内核入口点和栈指针。这个函数通常在进程创建（如 fork）时使用，用于初始化新进程的状态。
+*/
 static void
 copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf)
 {
+    // proc->tf 是一个指针，指向新进程的 trapframe
+    // 将 proc->tf 设置为内核栈顶部，即栈的最后一个位置，用于保存进程的寄存器状态。
     proc->tf = (struct trapframe *)(proc->kstack + KSTACKSIZE) - 1;
+    // 将父进程的 trapframe（即 tf）内容复制到新进程的 trapframe 中
     *(proc->tf) = *tf;
 
     // Set a0 to 0 so a child process knows it's just forked
+    // a0 寄存器通常用于存储系统调用的返回值或参数。这里将其设置为 0，表示这是一个新创建的子进程。
     proc->tf->gpr.a0 = 0;
+    // 这行代码设置 sp（栈指针）。如果传入的 esp 为 0，则将栈指针设置为 trapframe 的地址，即将栈指针指向新进程的 trapframe。否则，使用传入的 esp 作为栈指针。
+    /// 如果传入的 esp 为 0，则将栈指针设置为 trapframe 的地址，即将栈指针指向新进程的 trapframe。否则，使用传入的 esp 作为栈指针。
     proc->tf->gpr.sp = (esp == 0) ? (uintptr_t)proc->tf : esp;
 
+    /*
+    这两行代码设置新进程的 context（上下文）。
+    ra（返回地址）寄存器设置为 forkret，这是新进程启动时的入口函数。
+    sp（栈指针）寄存器设置为 trapframe 的地址，以确保进程在恢复时使用正确的栈。
+    */
     proc->context.ra = (uintptr_t)forkret;
     proc->context.sp = (uintptr_t)(proc->tf);
 }
@@ -523,8 +555,10 @@ bad_fork_cleanup_proc:
 //   1. call exit_mmap & put_pgdir & mm_destroy to free the almost all memory space of process
 //   2. set process' state as PROC_ZOMBIE, then call wakeup_proc(parent) to ask parent reclaim itself.
 //   3. call scheduler to switch to other process
+// do_exit 函数用于处理进程退出的操作，确保资源释放、进程状态更新以及相关的父子进程关系调整。
 int do_exit(int error_code)
 {
+    // 检查是否为空闲进程或初始化进程，如果是的话，调用 panic 报错并停止执行，因为空闲进程或初始化进程不应该退出。
     if (current == idleproc)
     {
         panic("idleproc exit.\n");
@@ -533,6 +567,7 @@ int do_exit(int error_code)
     {
         panic("initproc exit.\n");
     }
+    // 1. 调用 exit_mmap & put_pgdir & mm_destroy 释放进程的内存空间
     struct mm_struct *mm = current->mm;
     if (mm != NULL)
     {
@@ -545,17 +580,21 @@ int do_exit(int error_code)
         }
         current->mm = NULL;
     }
+    // 2. 设置进程状态为 PROC_ZOMBIE（僵尸进程），然后调用 wakeup_proc(parent) 通知父进程回收自己
     current->state = PROC_ZOMBIE;
     current->exit_code = error_code;
+    // 处理中断标志并调整父进程关系：
     bool intr_flag;
     struct proc_struct *proc;
     local_intr_save(intr_flag);
     {
         proc = current->parent;
+        // 如果父进程的 wait_state 是 WT_CHILD，表示父进程在等待子进程的退出，调用 wakeup_proc 唤醒父进程。
         if (proc->wait_state == WT_CHILD)
         {
             wakeup_proc(proc);
         }
+        // 接着处理当前进程的所有子进程，将子进程的父进程指针调整为 initproc，并将它们链接到 initproc 的子进程链表中。
         while (current->cptr != NULL)
         {
             proc = current->cptr;
@@ -568,6 +607,7 @@ int do_exit(int error_code)
             }
             proc->parent = initproc;
             initproc->cptr = proc;
+            // 如果某个子进程的状态已经是僵尸状态，且 initproc 的 wait_state 是 WT_CHILD，则唤醒 initproc，以便回收该子进程。
             if (proc->state == PROC_ZOMBIE)
             {
                 if (initproc->wait_state == WT_CHILD)
@@ -578,7 +618,9 @@ int do_exit(int error_code)
         }
     }
     local_intr_restore(intr_flag);
+    // 调用 schedule() 函数开始调度，选择下一个要执行的进程。
     schedule();
+    // do_exit 应该在此结束，但由于调用 schedule() 后控制权已经转移，后面的代码不应该再执行。如果真的执行到这里，调用 panic 报错，输出当前进程的 ID。
     panic("do_exit will not return!! %d.\n", current->pid);
 }
 
@@ -744,7 +786,7 @@ load_icode(unsigned char *binary, size_t size)
      *          hint: check meaning of SPP, SPIE in SSTATUS, use them by SSTATUS_SPP, SSTATUS_SPIE(defined in risv.h)
      */
 
-     /* 应设置 tf->gpr.sp、tf->epc、tf->status
+    /* 应设置 tf->gpr.sp、tf->epc、tf->status
      * 注意：如果我们正确设置了 trapframe，那么用户级进程就可以从内核返回 USER MODE。所以tf->gpr.sp 应该是用户栈顶（sp 的值）
      * tf->epc 应该是用户程序的入口（sepc 的值）。
      * tf->status 应适合用户程序（sstatus 的值）
@@ -752,9 +794,9 @@ load_icode(unsigned char *binary, size_t size)
      */
     // SSTATUS_SPP：Supervisor Previous Privilege（设置为 supervisor 模式）
     // SSTATUS_SPIE：Supervisor Previous Interrupt Enable（设置为启用中断）
-    tf->gpr.sp = USTACKTOP;  // 设置f->gpr.sp为用户栈的顶部地址
-    tf->epc = elf->e_entry;  // 设置tf->epc为用户程序的入口地址
-    tf->status = (read_csr(sstatus) & ~SSTATUS_SPP & ~SSTATUS_SPIE);  // 根据需要设置 tf->status 的值，清除 SSTATUS_SPP 和 SSTATUS_SPIE 位
+    tf->gpr.sp = USTACKTOP;                                          // 设置f->gpr.sp为用户栈的顶部地址
+    tf->epc = elf->e_entry;                                          // 设置tf->epc为用户程序的入口地址
+    tf->status = (read_csr(sstatus) & ~SSTATUS_SPP & ~SSTATUS_SPIE); // 根据需要设置 tf->status 的值，清除 SSTATUS_SPP 和 SSTATUS_SPIE 位
 
     ret = 0;
 out:

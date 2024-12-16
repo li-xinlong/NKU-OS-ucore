@@ -171,31 +171,48 @@ void mm_destroy(struct mm_struct *mm)
     kfree(mm); // kfree mm
     mm = NULL;
 }
+// mm_map 的函数，用于在给定的进程内存管理结构 mm 中映射一段虚拟内存区域（VMA）。它根据传入的虚拟地址、长度和权限标志来创建并插入新的 VMA。
+/*
+mm: 目标进程的内存管理结构（mm_struct），表示该进程的虚拟内存管理信息。
+addr: 起始地址，表示映射区域的虚拟地址。
+len: 映射区域的大小（字节数）。
+vm_flags: 虚拟内存区域的权限标志（如读、写、执行等）。
+vma_store: 一个指向 vma_struct 指针的指针。如果不为空，映射创建成功后，存储新创建的 VMA。
 
+0: 映射成功。
+-E_INVAL: 地址范围无效（地址不在用户可访问范围内）。
+-E_NO_MEM: 内存分配失败。
+*/
 int mm_map(struct mm_struct *mm, uintptr_t addr, size_t len, uint32_t vm_flags,
            struct vma_struct **vma_store)
 {
+    // 地址范围对齐：
+    // 将 addr 向下对齐到页面边界（页大小对齐）。
+    // 将 addr + len 向上对齐到页面边界。
     uintptr_t start = ROUNDDOWN(addr, PGSIZE), end = ROUNDUP(addr + len, PGSIZE);
+    // 使用 USER_ACCESS 宏检查给定的虚拟地址范围是否在用户可访问的内存范围内。
     if (!USER_ACCESS(start, end))
     {
         return -E_INVAL;
     }
-
+    // 确保 mm 不是空指针。
     assert(mm != NULL);
 
     int ret = -E_INVAL;
-
+    // 查找给定地址范围内是否已经存在 VMA。
     struct vma_struct *vma;
     if ((vma = find_vma(mm, start)) != NULL && end > vma->vm_start)
     {
         goto out;
     }
+    // 不存在则创建一个新的 VMA。
     ret = -E_NO_MEM;
 
     if ((vma = vma_create(start, end, vm_flags)) == NULL)
     {
         goto out;
     }
+    // 将新创建的 VMA 插入到mm的 VMA 链表中。
     insert_vma_struct(mm, vma);
     if (vma_store != NULL)
     {
@@ -207,8 +224,14 @@ out:
     return ret;
 }
 
+// dup_mmap 的函数，它用于将一个进程的内存映射（虚拟内存区域，VMA）复制到另一个进程。它通常用于实现进程间的内存共享或在进程复制时进行内存映射的复制。
+/*
+to: 目标进程的内存管理结构（mm_struct），将接收复制的内存映射。
+from: 源进程的内存管理结构（mm_struct），提供要复制的内存映射。
+*/
 int dup_mmap(struct mm_struct *to, struct mm_struct *from)
 {
+    // 确保 to 和 from 参数都不为空。
     assert(to != NULL && from != NULL);
     list_entry_t *list = &(from->mmap_list), *le = list;
     while ((le = list_prev(le)) != list)
@@ -222,7 +245,7 @@ int dup_mmap(struct mm_struct *to, struct mm_struct *from)
         }
 
         insert_vma_struct(to, nvma);
-
+        // share 设置为 0，表示不共享内存，只是单纯的复制。
         bool share = 0;
         if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, share) != 0)
         {
@@ -232,23 +255,37 @@ int dup_mmap(struct mm_struct *to, struct mm_struct *from)
     return 0;
 }
 
+// 主要用于处理进程退出时清理该进程的所有虚拟内存区域
 void exit_mmap(struct mm_struct *mm)
 {
     assert(mm != NULL && mm_count(mm) == 0);
+    // 获取进程的页目录（pgdir）。pgdir 指向该进程的页目录表，用于处理虚拟地址到物理地址的映射。
     pde_t *pgdir = mm->pgdir;
+    // 初始化 list 为进程虚拟内存区域链表的头指针，并将 le 设置为该链表的当前元素指针。mmap_list 存储了进程所有的虚拟内存区域（VMA）。
     list_entry_t *list = &(mm->mmap_list), *le = list;
+    // 遍历 mmap_list 链表中的所有元素。
     while ((le = list_next(le)) != list)
     {
+        // 使用 le2vma 宏将链表元素指针 le 转换为对应的虚拟内存区域（VMA）结构体指针。
         struct vma_struct *vma = le2vma(le, list_link);
+        // 调用 unmap_range 函数解除该虚拟内存区域（VMA）的映射
         unmap_range(pgdir, vma->vm_start, vma->vm_end);
     }
     while ((le = list_next(le)) != list)
     {
         struct vma_struct *vma = le2vma(le, list_link);
+        // 调用 exit_range 函数清理和释放该虚拟内存区域（VMA）所占用的资源（如释放页表项、解除映射等）。
         exit_range(pgdir, vma->vm_start, vma->vm_end);
     }
 }
-
+// copy_from_user 函数用于从用户空间复制数据到内核空间
+/*
+mm: 当前进程的内存管理结构，包含了该进程的页表和虚拟内存区域信息。
+dst: 内核空间的目标地址，数据将从 src 复制到这个位置。
+src: 用户空间的源地址，数据将从这里复制到内核空间。
+len: 需要复制的数据长度。
+writable: 如果 src 指向的数据是可写的，则 writable 为 true，否则为 false。
+*/
 bool copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len, bool writable)
 {
     if (!user_mem_check(mm, (uintptr_t)src, len, writable))
@@ -258,9 +295,21 @@ bool copy_from_user(struct mm_struct *mm, void *dst, const void *src, size_t len
     memcpy(dst, src, len);
     return 1;
 }
-
+// copy_to_user 函数用于将数据从内核空间复制到用户空间
+/*
+mm: 当前进程的内存管理结构，包含了该进程的页表和虚拟内存区域信息。
+dst: 用户空间的目标地址，数据将从内核空间的 src 复制到这个位置。
+src: 内核空间的源地址，数据将从这里复制到用户空间。
+len: 需要复制的数据长度。
+*/
 bool copy_to_user(struct mm_struct *mm, void *dst, const void *src, size_t len)
 {
+    /*
+    函数调用 user_mem_check 来检查用户空间内存的有效性，
+    确认 dst 地址及其指定的长度 len 是否是合法的，
+    并且是否具有写权限（由于 copy_to_user 是向用户空间写数据，
+    因此固定传入 writable = 1）。
+    */
     if (!user_mem_check(mm, (uintptr_t)dst, len, 1))
     {
         return 0;
@@ -519,27 +568,44 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
 failed:
     return ret;
 }
-
+// user_mem_check 的函数用于检查用户空间的内存访问是否合法。
+/*
+mm: 当前进程的内存管理结构，包含了该进程的虚拟内存区域（VMA）和页表信息。
+addr: 要检查的内存区域的起始地址。
+len: 要检查的内存区域的长度。
+write: 如果是 true，表示检查写权限；如果是 false，表示检查读权限。
+*/
 bool user_mem_check(struct mm_struct *mm, uintptr_t addr, size_t len, bool write)
 {
     if (mm != NULL)
     {
+        // USER_ACCESS(addr, addr + len) 宏用来检查 addr 到 addr + len 的内存是否属于用户空间。
         if (!USER_ACCESS(addr, addr + len))
         {
             return 0;
         }
+        // 接下来函数会遍历这个地址范围的每一部分，检查每一段虚拟内存区域（VMA）是否符合访问要求。
+
         struct vma_struct *vma;
         uintptr_t start = addr, end = addr + len;
         while (start < end)
         {
+            //// 使用 find_vma(mm, start) 查找当前进程的虚拟内存区域（VMA），
+            // 如果 find_vma 返回 NULL，或者 start 地址不在该虚拟内存区域的范围内，表示该区域不合法，返回 0。
             if ((vma = find_vma(mm, start)) == NULL || start < vma->vm_start)
             {
                 return 0;
             }
+            // 检查 vma->vm_flags，确保该区域具有相应的访问权限。
             if (!(vma->vm_flags & ((write) ? VM_WRITE : VM_READ)))
             {
                 return 0;
             }
+            /*
+            如果请求的是写权限并且该区域是栈空间（通过 VM_STACK 标志标识），
+            并且地址 start 小于栈的起始位置加一个页面的大小（PGSIZE），则认为该地址无效，返回 0。
+            这是为了防止栈溢出等问题。
+            */
             if (write && (vma->vm_flags & VM_STACK))
             {
                 if (start < vma->vm_start + PGSIZE)
