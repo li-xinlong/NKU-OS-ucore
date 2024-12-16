@@ -744,6 +744,18 @@ load_icode(unsigned char *binary, size_t size)
      *          hint: check meaning of SPP, SPIE in SSTATUS, use them by SSTATUS_SPP, SSTATUS_SPIE(defined in risv.h)
      */
 
+     /* 应设置 tf->gpr.sp、tf->epc、tf->status
+     * 注意：如果我们正确设置了 trapframe，那么用户级进程就可以从内核返回 USER MODE。所以tf->gpr.sp 应该是用户栈顶（sp 的值）
+     * tf->epc 应该是用户程序的入口（sepc 的值）。
+     * tf->status 应适合用户程序（sstatus 的值）
+     * 提示：检查 SSTATUS 中 SPP、SPIE 的含义，通过 SSTATUS_SPP、SSTATUS_SPIE（定义在 risv.h 中）使用它们。
+     */
+    // SSTATUS_SPP：Supervisor Previous Privilege（设置为 supervisor 模式）
+    // SSTATUS_SPIE：Supervisor Previous Interrupt Enable（设置为启用中断）
+    tf->gpr.sp = USTACKTOP;  // 设置f->gpr.sp为用户栈的顶部地址
+    tf->epc = elf->e_entry;  // 设置tf->epc为用户程序的入口地址
+    tf->status = (read_csr(sstatus) & ~SSTATUS_SPP & ~SSTATUS_SPIE);  // 根据需要设置 tf->status 的值，清除 SSTATUS_SPP 和 SSTATUS_SPIE 位
+
     ret = 0;
 out:
     return ret;
