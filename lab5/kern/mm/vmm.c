@@ -548,14 +548,31 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
             //(1）According to the mm AND addr, try
             // to load the content of right disk page
             // into the memory which page managed.
-            swap_in(mm, addr, &page);
             //(2) According to the mm,
             // addr AND page, setup the
             // map of phy addr <--->
             // logical addr
-            page_insert(mm->pgdir, page, addr, perm);
             //(3) make the page swappable.
+
+            // 在swap_in()函数执行完之后，page保存换入的物理页面。
+            // swap_in()函数里面可能把内存里原有的页面换出去
+            int r = swap_in(mm, addr, &page);
+
+            if (r != 0)
+            {
+                goto failed;
+            }
+
+            r = page_insert(mm->pgdir, page, addr, perm); // 更新页表，插入新的页表项
+
+            if (r != 0)
+            {
+                goto failed;
+            }
+
             swap_map_swappable(mm, addr, page, 1);
+            // 标记这个页面将来是可以再换出的
+
             page->pra_vaddr = addr;
         }
         else

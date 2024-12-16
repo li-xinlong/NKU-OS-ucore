@@ -105,6 +105,18 @@ alloc_proc(void)
          *       uint32_t flags;                             // Process flag
          *       char name[PROC_NAME_LEN + 1];               // Process name
          */
+        proc->state = PROC_UNINIT;
+        proc->pid = -1;
+        proc->runs = 0;
+        proc->kstack = NULL;
+        proc->need_resched = 0;
+        proc->parent = NULL;
+        proc->mm = NULL;
+        memset(&(proc->context), 0, sizeof(struct context));
+        proc->tf = NULL;
+        proc->cr3 = boot_cr3;
+        proc->flags = 0;
+        memset(proc->name, 0, PROC_NAME_LEN + 1);
 
         // LAB5 YOUR CODE : (update LAB4 steps)
         /*
@@ -112,18 +124,22 @@ alloc_proc(void)
          *       uint32_t wait_state;                        // waiting state
          *       struct proc_struct *cptr, *yptr, *optr;     // relations between processes
          */
-        proc->state = PROC_UNINIT; // 设置进程为“未初始化”状态——即第0个内核线程（空闲进程idleproc）
-        proc->pid = -1;            // 设置进程PID为未初始化值，即-1
-        proc->runs = 0;            // 根据提示可知该成员变量表示进程的运行时间，初始化为0
-        proc->kstack = 0;          // 进程内核栈初始化为空【kstack记录了分配给该进程/线程的内核栈的位置】
-        proc->need_resched = 0;    // 是否需要重新调度以释放 CPU？当然了，我们现在处于未初始化状态，不需要进行调度
-        proc->parent = NULL;       // 父进程控制块指针，第0个进程控制块诶，没有父进程
-        proc->mm = NULL;           // 进程的内存管理字段:参见lab3练习一分析；对于内核进程而言，不存在虚拟内存管理
-        memset(&(proc->context), 0, sizeof(struct context));
-        proc->tf = NULL;                      // 进程中断帧，初始化为空，发生中断时修改
-        proc->cr3 = boot_cr3;                 // 页表基址初始化——在pmm_init中初始化页表基址，实际上是satp寄存器
-        proc->flags = 0;                      // 进程标志位，初始化为空
-        memset(proc->name, 0, PROC_NAME_LEN); // 进程名初始化为空
+        /*
+        wait_state用于记录进程当前的等待状态，包括等待子进程结束、等待某个事件发生等等。
+        这个字段的存在使得ucore能够实现进程的等待和唤醒机制，从而可以在进程间实现协作和同步。
+        */
+
+        /*
+        cptr，yptr和optr是用于实现进程间通信的指针。
+
+        * cptr（child process pointer）指向该进程的子进程，即该进程创建的子进程；
+        * yptr（young sibling pointer）指向该进程的下一个兄弟进程，即该进程的创建时间比该进程晚的兄弟进程；
+        * optr（older sibling pointer）指向该进程的上一个兄弟进程，即该进程的创建时间比该进程早的兄弟进程。
+
+        这些指针的存在使得进程可以通过父子关系或兄弟关系进行通信和协作，从而实现了进程间的协作。
+        例如，一个进程可以通过cptr指向的子进程来传递数据或指令，
+        也可以通过yptr和optr指向的兄弟进程来协同完成某些任务。
+        */
         proc->wait_state = 0;
         proc->cptr = NULL;
         proc->yptr = NULL;
@@ -243,18 +259,16 @@ void proc_run(struct proc_struct *proc)
          */
         bool intr_flag;
         struct proc_struct *prev = current, *next = proc;
-        local_intr_save(intr_flag);
-        {
+        local_intr_save(intr_flag); // 禁用中断
+        // 实现切换进程
+        { // 切换当前进程为要运行的进程
             current = proc;
-            /*RISC-V 中的 SATP 寄存器用于存储当前进程的页表基址。
-            当操作系统进行进程切换时，目标进程的页表基址需要被加载到 SATP 寄存器中。
-            这样，新的进程在执行时，CPU 会使用目标进程的页表来进行虚拟地址到物理地址的映射，从而确保新进程的内存访问是正确的。
-            */
-            lcr3(proc->cr3);
-
+            // 切换页表，以便使用新进程的地址空间。
+            lcr3(next->cr3);
+            // 实现上下文切换。
             switch_to(&(prev->context), &(next->context));
         }
-        local_intr_restore(intr_flag);
+        local_intr_restore(intr_flag); // 允许中断
     }
 }
 
@@ -458,8 +472,13 @@ copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf)
 
 /* do_fork -     parent process for a new child process
  * @clone_flags: used to guide how to clone the child process
+                 copy_mm()用到
+
  * @stack:       the parent's user stack pointer. if stack==0, It means to fork a kernel thread.
+                 当前用户态esp的值，copy_thread()用到
+
  * @tf:          the trapframe info, which will be copied to child process's proc->tf
+                 父进程的trapframe，copy_thread()用到
  */
 int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
 {
@@ -496,6 +515,39 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
     //    6. call wakeup_proc to make the new child process RUNNABLE
     //    7. set ret vaule using child proc's pid
 
+    //    1. call alloc_proc to allocate a proc_struct
+    proc = alloc_proc(); // 分配prod
+    if (proc == NULL)
+        goto fork_out;
+    proc->parent = current;           // 将当前进程设置为父进程
+    assert(current->wait_state == 0); // 确保父进程不处于等待状态
+    //    2. call setup_kstack to allocate a kernel stack for child process
+    ret = setup_kstack(proc); // 分配kernel_stack
+    if (ret != 0)
+        goto fork_out;
+    //    3. call copy_mm to dup OR share mm according clone_flag
+    ret = copy_mm(clone_flags, proc); // 复制父进程内存，为新进程创建新的虚拟空间
+    if (ret != 0)
+        goto fork_out;
+    //    4. call copy_thread to setup tf & context in proc_struct
+    copy_thread(proc, stack, tf); // 设置trapframe和context
+
+    bool intr_flag;
+    local_intr_save(intr_flag);
+    {
+        proc->pid = get_pid();
+        //    5. insert proc_struct into hash_list && proc_list
+        hash_proc(proc);
+        // list_add(&proc_list,&(proc->list_link));
+        set_links(proc); // 设置进程的链接关系，在函数内部会将进程插入proc_list
+    }
+    local_intr_restore(intr_flag);
+
+    //    6. call wakeup_proc to make the new child process RUNNABLE
+    wakeup_proc(proc);
+    //    7. set ret vaule using child proc's pid
+    ret = proc->pid; // 父进程得到子进程的pid
+
     // LAB5 YOUR CODE : (update LAB4 steps)
     // TIPS: you should modify your written code in lab4(step1 and step5), not add more code.
     /* Some Functions
@@ -504,43 +556,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
      *    update step 1: set child proc's parent to current process, make sure current process's wait_state is 0
      *    update step 5: insert proc_struct into hash_list && proc_list, set the relation links of process
      */
-    // 1. 调用 alloc_proc 分配一个进程控制块
-    if ((proc = alloc_proc()) == NULL)
-    {
-        goto fork_out;
-    }
 
-    // 2. 调用 setup_kstack 为进程分配一个内核栈
-    if (setup_kstack(proc) != 0)
-    {
-        goto bad_fork_cleanup_proc;
-    }
-
-    // 3. 调用 copy_mm 根据 clone_flags 复制或共享内存管理信息
-    if (copy_mm(clone_flags, proc) != 0)
-    {
-        goto bad_fork_cleanup_kstack;
-    }
-
-    // 4. 调用 copy_thread 复制原进程的上下文信息
-    copy_thread(proc, stack, tf);
-
-    // 5. 将新进程插入到进程hash列表和进程列表中
-    bool intr_flag;
-    local_intr_save(intr_flag);
-    {
-        proc->pid = get_pid();
-        hash_proc(proc);
-        list_add(&proc_list, &(proc->list_link));
-        nr_process++;
-    }
-    local_intr_restore(intr_flag);
-
-    // 6. 将新进程设置为就绪状态
-    wakeup_proc(proc);
-
-    // 7. 返回新进程的pid
-    ret = proc->pid;
 fork_out:
     return ret;
 
@@ -638,16 +654,22 @@ load_icode(unsigned char *binary, size_t size)
 
     int ret = -E_NO_MEM;
     struct mm_struct *mm;
+
+    //(1)(2)完成新的进程内存空间的初始化
     //(1) create a new mm for current process
+    // 创建一个新的内存空间
     if ((mm = mm_create()) == NULL)
     {
         goto bad_mm;
     }
     //(2) create a new PDT, and mm->pgdir= kernel virtual addr of PDT
+    // 创建页表
     if (setup_pgdir(mm) != 0)
     {
         goto bad_pgdir_cleanup_mm;
     }
+
+    //(3)将新的进程数据填入为其准备的内存空间中
     //(3) copy TEXT/DATA section, build BSS parts in binary to memory space of process
     struct Page *page;
     //(3.1) get the file header of the bianry program (ELF format)
@@ -694,6 +716,7 @@ load_icode(unsigned char *binary, size_t size)
             perm |= (PTE_W | PTE_R);
         if (vm_flags & VM_EXEC)
             perm |= PTE_X;
+        // mm_map创建一个合法的vma空间
         if ((ret = mm_map(mm, ph->p_va, ph->p_memsz, vm_flags, NULL)) != 0)
         {
             goto bad_cleanup_mmap;
@@ -707,6 +730,7 @@ load_icode(unsigned char *binary, size_t size)
         //(3.6) alloc memory, and  copy the contents of every program section (from, from+end) to process's memory (la, la+end)
         end = ph->p_va + ph->p_filesz;
         //(3.6.1) copy TEXT/DATA section of bianry program
+        // 拷贝程序的代码 内容/数据段 内容到进程空间中
         while (start < end)
         {
             if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL)
@@ -766,12 +790,16 @@ load_icode(unsigned char *binary, size_t size)
     assert(pgdir_alloc_page(mm->pgdir, USTACKTOP - 3 * PGSIZE, PTE_USER) != NULL);
     assert(pgdir_alloc_page(mm->pgdir, USTACKTOP - 4 * PGSIZE, PTE_USER) != NULL);
 
+    // 截止到(4)结束，ELF程序的内存空间以及建立完毕
+
     //(5) set current process's mm, sr3, and set CR3 reg = physical addr of Page Directory
     mm_count_inc(mm);
     current->mm = mm;
     current->cr3 = PADDR(mm->pgdir);
-    lcr3(PADDR(mm->pgdir));
+    lcr3(PADDR(mm->pgdir)); // 加载当前ELF的页表，ELF完成加载（目前在kernel空间）
 
+    // 步骤(6)会创建trapframe，从而使当前程序能够从 kernel空间 加载到 user空间 中
+    // 涉及从 ring0 到 ring3 的切换，使 kstack 切换为 用户栈
     //(6) setup trapframe for user environment
     struct trapframe *tf = current->tf;
     // Keep sstatus
@@ -797,7 +825,10 @@ load_icode(unsigned char *binary, size_t size)
     tf->gpr.sp = USTACKTOP;                                          // 设置f->gpr.sp为用户栈的顶部地址
     tf->epc = elf->e_entry;                                          // 设置tf->epc为用户程序的入口地址
     tf->status = (read_csr(sstatus) & ~SSTATUS_SPP & ~SSTATUS_SPIE); // 根据需要设置 tf->status 的值，清除 SSTATUS_SPP 和 SSTATUS_SPIE 位
-
+                                                                     /*
+                                                                        SSTATUS_SPP: 在ucore中，这个字段用于记录处理器从用户态(U)切换到内核态(S)时的特权级别。
+                                                                        SSTATUS_SPIE: 在ucore中，这个字段用于记录处理器从用户态切换到内核态时的中断使能状态。
+                                                                        */
     ret = 0;
 out:
     return ret;
@@ -832,9 +863,10 @@ int do_execve(const char *name, size_t len, unsigned char *binary, size_t size)
     if (mm != NULL)
     {
         cputs("mm != NULL");
-        lcr3(boot_cr3);
+        lcr3(boot_cr3); // 加载内核页表
         if (mm_count_dec(mm) == 0)
         {
+            // 将进程内存管理对应的空间清空
             exit_mmap(mm);
             put_pgdir(mm);
             mm_destroy(mm);
@@ -842,6 +874,7 @@ int do_execve(const char *name, size_t len, unsigned char *binary, size_t size)
         current->mm = NULL;
     }
     int ret;
+    // load_icode将新的进程的数据加载到被清空的进程中
     if ((ret = load_icode(binary, size)) != 0)
     {
         goto execve_exit;
