@@ -23,7 +23,7 @@ PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
 
 Special kernel symbols:
   entry  0xc0200032 (virtual)
-  etext  0xc020654e (virtual)
+  etext  0xc02066e0 (virtual)
   edata  0xc02a7460 (virtual)
   end    0xc02b29bc (virtual)
 Kernel executable memory footprint: 715KB
@@ -98,6 +98,13 @@ check_swap() succeeded!
 ++ setup timer interrupts
 kernel_execve: pid = 2, name = "badarg".
 Breakpoint
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04bd000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2012f41b
 fork ok.
 badarg pass.
 all user-mode processes have quit.

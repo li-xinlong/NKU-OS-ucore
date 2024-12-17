@@ -446,10 +446,8 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
             uint32_t perm = (*ptep & PTE_USER);
             // 从ptep中获取页
             struct Page *page = pte2page(*ptep);
-            // 为进程B分配一个页
-            struct Page *npage = alloc_page();
             assert(page != NULL);
-            assert(npage != NULL);
+
             int ret = 0;
             /* LAB5:EXERCISE2 YOUR CODE
              * 复制页的内容到npage，建立phy addr和线性地址start的映射
@@ -465,14 +463,27 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
              * (3) 从src_kvaddr复制内容到dst_kvaddr，大小为PGSIZE
              * (4) 建立phy addr和npage的线性地址start的映射
              */
-            // 1.找寻父进程的内核虚拟页地址
-            uintptr_t src_kvaddr = page2kva(page);
-            // 2.找寻子进程的内核虚拟页地址
-            uintptr_t dst_kvaddr = page2kva(npage);
-            // 3.复制父进程内容到子进程
-            memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
-            // 4.建立物理地址与子进程的页地址起始位置的映射关系
-            ret = page_insert(to, npage, start, perm);
+
+            if (share)
+            {
+                cprintf("Sharing the page 0x%x\n", page2kva(page));
+                page_insert(from, page, start, perm & (~PTE_W));
+                ret = page_insert(to, page, start, perm & (~PTE_W));
+            }
+            else
+            {
+                // 为进程B分配一个页
+                struct Page *npage = alloc_page();
+                assert(npage != NULL);
+                // 1.找寻父进程的内核虚拟页地址
+                uintptr_t src_kvaddr = page2kva(page);
+                // 2.找寻子进程的内核虚拟页地址
+                uintptr_t dst_kvaddr = page2kva(npage);
+                // 3.复制父进程内容到子进程
+                memcpy(dst_kvaddr, src_kvaddr, PGSIZE);
+                // 4.建立物理地址与子进程的页地址起始位置的映射关系
+                ret = page_insert(to, npage, start, perm);
+            }
 
             assert(ret == 0);
         }

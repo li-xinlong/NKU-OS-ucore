@@ -23,7 +23,7 @@ PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
 
 Special kernel symbols:
   entry  0xc0200032 (virtual)
-  etext  0xc020654e (virtual)
+  etext  0xc02066e0 (virtual)
   edata  0xc02a7460 (virtual)
   end    0xc02b29bc (virtual)
 Kernel executable memory footprint: 715KB
@@ -98,37 +98,323 @@ check_swap() succeeded!
 ++ setup timer interrupts
 kernel_execve: pid = 2, name = "forktest".
 Breakpoint
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04bd000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2012f41b
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04ca000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20132813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04d2000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20134813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04da000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20136813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04e2000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20138813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04ea000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2013a813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04f2000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2013c813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc04fa000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2013e813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0502000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20140813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc050a000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20142813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0512000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20144813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc051a000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20146813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0522000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20148813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc052a000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2014a813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0532000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2014c813
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc053b000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2014ec13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0543000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20150c13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc054b000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20152c13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0553000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20154c13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc055b000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20156c13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0563000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20158c13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc056b000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2015ac13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0573000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2015cc13
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc057c000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2015f013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0584000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20161013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc058c000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20163013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc0594000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20165013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc059c000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20167013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc05a4000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x20169013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc05ac000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2016b013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc05b4000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2016d013
+Sharing the page 0xc04c2000
+Sharing the page 0xc04c1000
+Sharing the page 0xc04c0000
+Sharing the page 0xc05bd000
+Sharing the page 0xc04ba000
+Store/AMO page fault
+COW: ptep 0xc04bfff8, pte 0x2016f413
 I am child 31
+Store/AMO page fault
+COW: ptep 0xc05baff8, pte 0x2016d013
 I am child 30
+Store/AMO page fault
+COW: ptep 0xc05b1ff8, pte 0x2016b013
 I am child 29
+Store/AMO page fault
+COW: ptep 0xc05a9ff8, pte 0x20169013
 I am child 28
+Store/AMO page fault
+COW: ptep 0xc05a1ff8, pte 0x20167013
 I am child 27
+Store/AMO page fault
+COW: ptep 0xc0599ff8, pte 0x20165013
 I am child 26
+Store/AMO page fault
+COW: ptep 0xc0591ff8, pte 0x20163013
 I am child 25
+Store/AMO page fault
+COW: ptep 0xc0589ff8, pte 0x20161013
 I am child 24
+Store/AMO page fault
+COW: ptep 0xc0581ff8, pte 0x2015f013
 I am child 23
+Store/AMO page fault
+COW: ptep 0xc0579ff8, pte 0x2015cc13
 I am child 22
+Store/AMO page fault
+COW: ptep 0xc0570ff8, pte 0x2015ac13
 I am child 21
+Store/AMO page fault
+COW: ptep 0xc0568ff8, pte 0x20158c13
 I am child 20
+Store/AMO page fault
+COW: ptep 0xc0560ff8, pte 0x20156c13
 I am child 19
+Store/AMO page fault
+COW: ptep 0xc0558ff8, pte 0x20154c13
 I am child 18
+Store/AMO page fault
+COW: ptep 0xc0550ff8, pte 0x20152c13
 I am child 17
+Store/AMO page fault
+COW: ptep 0xc0548ff8, pte 0x20150c13
 I am child 16
+Store/AMO page fault
+COW: ptep 0xc0540ff8, pte 0x2014ec13
 I am child 15
+Store/AMO page fault
+COW: ptep 0xc0538ff8, pte 0x2014c813
 I am child 14
+Store/AMO page fault
+COW: ptep 0xc052fff8, pte 0x2014a813
 I am child 13
+Store/AMO page fault
+COW: ptep 0xc0527ff8, pte 0x20148813
 I am child 12
+Store/AMO page fault
+COW: ptep 0xc051fff8, pte 0x20146813
 I am child 11
+Store/AMO page fault
+COW: ptep 0xc0517ff8, pte 0x20144813
 I am child 10
+Store/AMO page fault
+COW: ptep 0xc050fff8, pte 0x20142813
 I am child 9
+Store/AMO page fault
+COW: ptep 0xc0507ff8, pte 0x20140813
 I am child 8
+Store/AMO page fault
+COW: ptep 0xc04ffff8, pte 0x2013e813
 I am child 7
+Store/AMO page fault
+COW: ptep 0xc04f7ff8, pte 0x2013c813
 I am child 6
+Store/AMO page fault
+COW: ptep 0xc04efff8, pte 0x2013a813
 I am child 5
+Store/AMO page fault
+COW: ptep 0xc04e7ff8, pte 0x20138813
 I am child 4
+Store/AMO page fault
+COW: ptep 0xc04dfff8, pte 0x20136813
 I am child 3
+Store/AMO page fault
+COW: ptep 0xc04d7ff8, pte 0x20134813
 I am child 2
+Store/AMO page fault
+COW: ptep 0xc04cfff8, pte 0x20132813
 I am child 1
+Store/AMO page fault
+COW: ptep 0xc04c7ff8, pte 0x2012f41b
 I am child 0
 forktest pass.
 all user-mode processes have quit.

@@ -246,7 +246,10 @@ int dup_mmap(struct mm_struct *to, struct mm_struct *from)
 
         insert_vma_struct(to, nvma);
         // share 设置为 0，表示不共享内存，只是单纯的复制。
-        bool share = 0;
+        // bool share = 0;
+        // cow机制下，设置为共享
+        //
+        bool share = 1;
         if (copy_range(to->pgdir, from->pgdir, vma->vm_start, vma->vm_end, share) != 0)
         {
             return -E_NO_MEM;
@@ -513,14 +516,17 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
 
     // try to find a pte, if pte's PT(Page Table) isn't existed, then create a PT.
     // (notice the 3th parameter '1')
+    // 查找当前虚拟地址所对应的页表项
     if ((ptep = get_pte(mm->pgdir, addr, 1)) == NULL)
     {
         cprintf("get_pte in do_pgfault failed\n");
         goto failed;
     }
-
+    // 如果这个页表项所对应的物理页不存在，则
     if (*ptep == 0)
-    { // if the phy addr isn't exist, then alloc a page & map the phy addr with logical addr
+    {
+        // if the phy addr isn't exist, then alloc a page & map the phy addr with logical addr
+        // 分配一块物理页，并设置页表项
         if (pgdir_alloc_page(mm->pgdir, addr, perm) == NULL)
         {
             cprintf("pgdir_alloc_page in do_pgfault failed\n");
@@ -541,44 +547,74 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
          *    page_insert ： 建立一个Page的phy addr与线性addr la的映射
          *    swap_map_swappable ： 设置页面可交换
          */
-        if (swap_init_ok)
+        // 引入写时复制
+        struct Page *page = NULL;
+        // 如果当前页错误的原因是写入了只读页面
+        if (*ptep & PTE_V)
         {
-            struct Page *page = NULL;
-            // 你要编写的内容在这里，请基于上文说明以及下文的英文注释完成代码编写
-            //(1）According to the mm AND addr, try
-            // to load the content of right disk page
-            // into the memory which page managed.
-            //(2) According to the mm,
-            // addr AND page, setup the
-            // map of phy addr <--->
-            // logical addr
-            //(3) make the page swappable.
-
-            // 在swap_in()函数执行完之后，page保存换入的物理页面。
-            // swap_in()函数里面可能把内存里原有的页面换出去
-            int r = swap_in(mm, addr, &page);
-
-            if (r != 0)
+            // 写时复制：复制一块内存给当前进程
+            cprintf("COW: ptep 0x%x, pte 0x%x\n", ptep, *ptep);
+            // 原先所使用的只读物理页
+            page = pte2page(*ptep);
+            // 如果该物理页面被多个进程引用
+            if (page_ref(page) > 1)
             {
-                goto failed;
+                // 释放当前PTE的引用并分配一个新物理页
+                struct Page *newPage = pgdir_alloc_page(mm->pgdir, addr, perm);
+                void *kva_src = page2kva(page);
+                void *kva_dst = page2kva(newPage);
+                // 拷贝数据
+                memcpy(kva_dst, kva_src, PGSIZE);
             }
-
-            r = page_insert(mm->pgdir, page, addr, perm); // 更新页表，插入新的页表项
-
-            if (r != 0)
+            // 如果该物理页面只被当前进程所引用,即page_ref等1
+            else
             {
-                goto failed;
+                // 则可以直接执行page_insert，保留当前物理页并重设其PTE权限。
+                page_insert(mm->pgdir, page, addr, perm);
             }
-
-            swap_map_swappable(mm, addr, page, 1);
-            // 标记这个页面将来是可以再换出的
-
-            page->pra_vaddr = addr;
         }
         else
         {
-            cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
-            goto failed;
+            if (swap_init_ok)
+            {
+                struct Page *page = NULL;
+                // 你要编写的内容在这里，请基于上文说明以及下文的英文注释完成代码编写
+                //(1）According to the mm AND addr, try
+                // to load the content of right disk page
+                // into the memory which page managed.
+                //(2) According to the mm,
+                // addr AND page, setup the
+                // map of phy addr <--->
+                // logical addr
+                //(3) make the page swappable.
+
+                // 在swap_in()函数执行完之后，page保存换入的物理页面。
+                // swap_in()函数里面可能把内存里原有的页面换出去
+                int r = swap_in(mm, addr, &page);
+
+                if (r != 0)
+                {
+                    cprintf("swap_in in do_pgfault failed\n");
+                    goto failed;
+                }
+
+                r = page_insert(mm->pgdir, page, addr, perm); // 更新页表，插入新的页表项
+
+                if (r != 0)
+                {
+                    goto failed;
+                }
+
+                swap_map_swappable(mm, addr, page, 1);
+                // 标记这个页面将来是可以再换出的
+
+                page->pra_vaddr = addr;
+            }
+            else
+            {
+                cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
+                goto failed;
+            }
         }
     }
     ret = 0;
