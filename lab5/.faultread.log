@@ -24,8 +24,8 @@ PMP1: 0x0000000000000000-0xffffffffffffffff (A,R,W,X)
 Special kernel symbols:
   entry  0xc0200032 (virtual)
   etext  0xc02066e0 (virtual)
-  edata  0xc02a7460 (virtual)
-  end    0xc02b29bc (virtual)
+  edata  0xc02a7480 (virtual)
+  end    0xc02b29dc (virtual)
 Kernel executable memory footprint: 715KB
 memory management: default_pmm_manager
 physcial memory map:
@@ -137,6 +137,6 @@ trapframe at 0xffffffffc04b8ee0
   epc      0x008004e8
   tval 0x00000000
   cause    0x0000000d
-kernel panic at kern/trap/trap.c:241:
+kernel panic at kern/trap/trap.c:261:
     handle pgfault failed. invalid parameter
 

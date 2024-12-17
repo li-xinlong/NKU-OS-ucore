@@ -9,18 +9,18 @@
 // process's state in his life cycle
 enum proc_state
 {
-    PROC_UNINIT = 0, // uninitialized
-    PROC_SLEEPING,   // sleeping
-    PROC_RUNNABLE,   // runnable(maybe running)
-    PROC_ZOMBIE,     // almost dead, and wait parent proc to reclaim his resource
+    PROC_UNINIT = 0, // 未初始化状态。
+    PROC_SLEEPING,   // 睡眠状态。进程正在等待某个事件或资源，无法继续运行。处于此状态的进程不会被调度，直到等待的事件被触发或资源变得可用。
+    PROC_RUNNABLE,   // 可运行状态。表示进程已经准备好运行，可以被调度器选择并运行在 CPU 上。
+    PROC_ZOMBIE,     // 僵尸状态。表示进程已结束执行，但其父进程尚未回收其资源（如退出码、进程描述符等）。
 };
 // 一共14个寄存器，寄存器可以分为调用者保存（caller-saved）寄存器和被调用者保存（callee-saved）寄存器。
 // 实际的进程切换过程中我们只需要保存被调用者保存寄存器
 struct context
 {
-    uintptr_t ra;
-    uintptr_t sp;
-    uintptr_t s0;
+    uintptr_t ra; // 保存函数调用的返回地址。
+    uintptr_t sp; // 指向当前任务或进程的栈顶。
+    uintptr_t s0; // 通常用作函数的帧指针，指向当前函数栈帧的基地址。
     uintptr_t s1;
     uintptr_t s2;
     uintptr_t s3;
@@ -70,10 +70,12 @@ struct proc_struct
     // proc->yptr 是当前进程的“年幼兄弟”指针，指向当前进程的下一个兄弟进程。
     struct proc_struct *cptr, *yptr, *optr; // 进程之间的关系
 };
-
+// 表示该进程正在退出（shutting down），通常在 do_exit 或类似的退出流程中设置。
 #define PF_EXITING 0x00000001 // getting shutdown
 
+// 表示进程的等待状态，用于标记进程当前在等待子进程退出。它是一个组合标志，由 0x00000001 和 WT_INTERRUPTED 共同组成。
 #define WT_CHILD (0x00000001 | WT_INTERRUPTED)
+// 表示进程的等待状态是可以被中断的。
 #define WT_INTERRUPTED 0x80000000 // the wait state could be interrupted
 
 /**

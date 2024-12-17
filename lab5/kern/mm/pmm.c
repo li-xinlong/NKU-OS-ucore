@@ -89,7 +89,7 @@ void free_pages(struct Page *base, size_t n)
     local_intr_restore(intr_flag);
 }
 
-// nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE)
+// nr_free_pages - call pmm->nr_free_pages to get the size (nr*PAGESIZE) 调用pmm->nr_free_pages函数获取当前空闲内存的大小（nr*PAGESIZE）
 // of current free memory
 size_t nr_free_pages(void)
 {
@@ -449,7 +449,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
             assert(page != NULL);
 
             int ret = 0;
-            /* LAB5:EXERCISE2 YOUR CODE
+            /* LAB5:EXERCISE2 2212599 2212294 2212045
              * 复制页的内容到npage，建立phy addr和线性地址start的映射
              *
              * 一些有用的宏和定义，你可以在下面的实现中使用它们。

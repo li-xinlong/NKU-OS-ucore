@@ -118,7 +118,7 @@ alloc_proc(void)
         proc->flags = 0;
         memset(proc->name, 0, PROC_NAME_LEN + 1);
 
-        // LAB5 YOUR CODE : (update LAB4 steps)
+        // LAB5 2212599 2212294 2212045 : (update LAB4 steps)
         /*
          * below fields(add in LAB5) in proc_struct need to be initialized
          *       uint32_t wait_state;                        // waiting state
@@ -148,7 +148,7 @@ alloc_proc(void)
     return proc;
 }
 
-// set_proc_name - set the name of proc
+// set_proc_name - 设置进程的名称
 char *
 set_proc_name(struct proc_struct *proc, const char *name)
 {
@@ -345,7 +345,7 @@ setup_kstack(struct proc_struct *proc)
     return -E_NO_MEM;
 }
 
-// put_kstack - free the memory space of process kernel stack
+// put_kstack - 释放进程内核栈的内存空间
 static void
 put_kstack(struct proc_struct *proc)
 {
@@ -548,7 +548,7 @@ int do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf)
     //    7. set ret vaule using child proc's pid
     ret = proc->pid; // 父进程得到子进程的pid
 
-    // LAB5 YOUR CODE : (update LAB4 steps)
+    // LAB5 2212599 2212294 2212045 : (update LAB4 steps)
     // TIPS: you should modify your written code in lab4(step1 and step5), not add more code.
     /* Some Functions
      *    set_links:  set the relation links of process.  ALSO SEE: remove_links:  lean the relation links of process
@@ -587,13 +587,16 @@ int do_exit(int error_code)
     struct mm_struct *mm = current->mm;
     if (mm != NULL)
     {
+        //// 切换到内核页表，确保接下来的操作在内核空间执行
         lcr3(boot_cr3);
+        // 如果mm引用计数减到0，说明没有其他进程共享此mm
         if (mm_count_dec(mm) == 0)
         {
             exit_mmap(mm);
             put_pgdir(mm);
             mm_destroy(mm);
         }
+        // 将当前进程的mm设置为NULL，表示资源已经释放
         current->mm = NULL;
     }
     // 2. 设置进程状态为 PROC_ZOMBIE（僵尸进程），然后调用 wakeup_proc(parent) 通知父进程回收自己
@@ -604,6 +607,7 @@ int do_exit(int error_code)
     struct proc_struct *proc;
     local_intr_save(intr_flag);
     {
+        // 获取当前进程的父进程
         proc = current->parent;
         // 如果父进程的 wait_state 是 WT_CHILD，表示父进程在等待子进程的退出，调用 wakeup_proc 唤醒父进程。
         if (proc->wait_state == WT_CHILD)
@@ -615,7 +619,7 @@ int do_exit(int error_code)
         {
             proc = current->cptr;
             current->cptr = proc->optr;
-
+            // 设置子进程的父进程为initproc，并加入initproc的子进程链表
             proc->yptr = NULL;
             if ((proc->optr = initproc->cptr) != NULL)
             {
@@ -623,7 +627,7 @@ int do_exit(int error_code)
             }
             proc->parent = initproc;
             initproc->cptr = proc;
-            // 如果某个子进程的状态已经是僵尸状态，且 initproc 的 wait_state 是 WT_CHILD，则唤醒 initproc，以便回收该子进程。
+            // 如果子进程也处于退出状态，唤醒initproc，以便回收该子进程。
             if (proc->state == PROC_ZOMBIE)
             {
                 if (initproc->wait_state == WT_CHILD)
@@ -633,6 +637,7 @@ int do_exit(int error_code)
             }
         }
     }
+    // 开中断
     local_intr_restore(intr_flag);
     // 调用 schedule() 函数开始调度，选择下一个要执行的进程。
     schedule();
@@ -805,7 +810,7 @@ load_icode(unsigned char *binary, size_t size)
     // Keep sstatus
     uintptr_t sstatus = tf->status;
     memset(tf, 0, sizeof(struct trapframe));
-    /* LAB5:EXERCISE1 YOUR CODE
+    /* LAB5:EXERCISE1 2212599 2212294 2212045
      * should set tf->gpr.sp, tf->epc, tf->status
      * NOTICE: If we set trapframe correctly, then the user level process can return to USER MODE from kernel. So
      *          tf->gpr.sp should be user stack top (the value of sp)
@@ -847,10 +852,12 @@ bad_mm:
 int do_execve(const char *name, size_t len, unsigned char *binary, size_t size)
 {
     struct mm_struct *mm = current->mm;
+    // 检查name的内存空间能否被访问
     if (!user_mem_check(mm, (uintptr_t)name, len, 0))
     {
         return -E_INVAL;
     }
+    // 进程名字的长度有上限 PROC_NAME_LEN，在proc.h定义
     if (len > PROC_NAME_LEN)
     {
         len = PROC_NAME_LEN;
@@ -864,21 +871,23 @@ int do_execve(const char *name, size_t len, unsigned char *binary, size_t size)
     {
         cputs("mm != NULL");
         lcr3(boot_cr3); // 加载内核页表
+        // 如果引用计数为0，释放内存空间
         if (mm_count_dec(mm) == 0)
         {
             // 将进程内存管理对应的空间清空
             exit_mmap(mm);
             put_pgdir(mm);
-            mm_destroy(mm);
+            mm_destroy(mm); // 把进程当前占用的内存释放，之后重新分配内存
         }
         current->mm = NULL;
     }
     int ret;
-    // load_icode将新的进程的数据加载到被清空的进程中
+    // //把新的程序加载到当前进程里的工作都在load_icode()函数里完成
     if ((ret = load_icode(binary, size)) != 0)
     {
-        goto execve_exit;
+        goto execve_exit; // 返回不为0，则加载失败
     }
+    // 如果set_proc_name的实现不变, 为什么不能直接set_proc_name(current, name)? 为什么要用local_name?暂时不知道
     set_proc_name(current, local_name);
     return 0;
 
@@ -897,9 +906,17 @@ int do_yield(void)
 // do_wait - wait one OR any children with PROC_ZOMBIE state, and free memory space of kernel stack
 //         - proc struct of this child.
 // NOTE: only after do_wait function, all resources of the child proces are free.
+/*
+等待特定子进程（通过 pid 指定）或任意子进程（如果 pid == 0）。
+返回退出的子进程的状态码（如果 code_store 不为 NULL）。
+如果没有子进程或者没有符合条件的退出子进程，则返回错误码。
+
+code_store：指向一个存储退出码的用户态指针。
+*/
 int do_wait(int pid, int *code_store)
 {
     struct mm_struct *mm = current->mm;
+    // 检查 code_store 是否是用户态进程可访问的合法地址。
     if (code_store != NULL)
     {
         if (!user_mem_check(mm, (uintptr_t)code_store, sizeof(int), 1))
@@ -911,19 +928,25 @@ int do_wait(int pid, int *code_store)
     struct proc_struct *proc;
     bool intr_flag, haskid;
 repeat:
+
+    // 表示当前进程是否有子进程（不论是否符合等待条件）。
     haskid = 0;
+    // 寻找指定进程:使用 find_proc(pid) 查找进程。
     if (pid != 0)
     {
         proc = find_proc(pid);
         if (proc != NULL && proc->parent == current)
         {
             haskid = 1;
+            // 果目标进程处于 PROC_ZOMBIE（僵尸状态），跳转到 found 进行后续处理
             if (proc->state == PROC_ZOMBIE)
             {
                 goto found;
             }
         }
     }
+    // 寻找任意子进程（pid == 0）
+    // 遍历当前进程的子进程链表（从 cptr 开始，通过 optr 遍历）。找到第一个符合条件的 PROC_ZOMBIE 子进程，跳转到 found。
     else
     {
         proc = current->cptr;
@@ -936,15 +959,21 @@ repeat:
             }
         }
     }
+    // 如果有子进程但未找到符合条件的僵尸进程：阻塞等待
     if (haskid)
     {
+        // 将当前进程设置为 PROC_SLEEPING 状态。
         current->state = PROC_SLEEPING;
+        // 设置 wait_state 为 WT_CHILD，标明该进程处于等待子进程的状态。
         current->wait_state = WT_CHILD;
+        // 调用 schedule() 进行上下文切换，让出 CPU。
         schedule();
+        // 如果进程在等待过程中收到强制退出信号（标记为 PF_EXITING），调用 do_exit 退出当前进程。
         if (current->flags & PF_EXITING)
         {
             do_exit(-E_KILLED);
         }
+        // 等待结束后，重新检查子进程状态（跳转到 repeat）。
         goto repeat;
     }
     return -E_BAD_PROC;
@@ -954,16 +983,23 @@ found:
     {
         panic("wait idleproc or initproc.\n");
     }
+    // 如果 code_store 不为 NULL，将子进程的退出码写入到 code_store 指向的内存中。
     if (code_store != NULL)
     {
         *code_store = proc->exit_code;
     }
+    // 清理子进程资源
+    // 1. 关闭中断：保护以下操作的原子性。
     local_intr_save(intr_flag);
     {
+        // 2. 解除进程引用：
+        // 从哈希表中删除进程。
         unhash_proc(proc);
+        // 从父进程和兄弟进程的链表中移除该子进程。
         remove_links(proc);
     }
     local_intr_restore(intr_flag);
+    // 3. 释放子进程的内核栈和 proc 结构。
     put_kstack(proc);
     kfree(proc);
     return 0;
@@ -990,40 +1026,83 @@ int do_kill(int pid)
 }
 
 // kernel_execve - do SYS_exec syscall to exec a user program called by user_main kernel_thread
+// 用于在内核中启动用户态程序。
+/*
+name：用户态程序的名称（字符串）。
+binary：程序二进制的起始地址。
+size：程序的大小（以字节为单位）。
+
+ret：用于存储系统调用的返回值。
+len：程序名称 name 的长度，计算后传递给系统调用。
+*/
 static int
 kernel_execve(const char *name, unsigned char *binary, size_t size)
 {
     int64_t ret = 0, len = strlen(name);
+    // 在这里为什么不直接调用 do_execve 函数，而是通过内联汇编调用系统调用？
+    /*
+    do_execve() load_icode()里面只是构建了用户程序运行的上下文，但是并没有完成切换。
+    上下文切换实际上要借助中断处理的返回来完成。直接调用do_execve()是无法完成上下文切换的。
+    如果是在用户态调用exec(), 系统调用的ecall产生的中断返回时， 就可以完成上下文切换。
+
+    为什么此时还在S态？kernel_execve用于在内核中启动用户态程序。
+
+    由于目前我们在S mode下，所以不能通过ecall来产生中断。
+    我们这里采取一个取巧的办法，用ebreak产生断点中断进行处理，通过设置a7寄存器的值为10说明这不是一个普通的断点中断，
+    而是要转发到syscall(), 这样用一个不是特别优雅的方式，实现了在内核态使用系统调用。
+    */
     //   ret = do_execve(name, len, binary, size);
     asm volatile(
-        "li a0, %1\n"
-        "lw a1, %2\n"
-        "lw a2, %3\n"
-        "lw a3, %4\n"
-        "lw a4, %5\n"
-        "li a7, 10\n"
-        "ebreak\n"
-        "sw a0, %0\n"
-        : "=m"(ret)
-        : "i"(SYS_exec), "m"(name), "m"(len), "m"(binary), "m"(size)
-        : "memory");
+        "li a0, %1\n"                                                // 加载常量 SYS_exec 到寄存器 a0
+        "lw a1, %2\n"                                                // 加载程序名称的地址到寄存器 a1
+        "lw a2, %3\n"                                                // 加载名称长度到寄存器 a2
+        "lw a3, %4\n"                                                // 加载程序二进制起始地址到寄存器 a3
+        "lw a4, %5\n"                                                // 加载程序大小到寄存器 a4
+        "li a7, 10\n"                                                // 设置系统调用编号为 10 到寄存器 a7
+        "ebreak\n"                                                   // 触发系统调用（通常通过软件中断或特殊指令实现）
+        "sw a0, %0\n"                                                // 将系统调用返回值从寄存器 a0 存储到 ret
+        : "=m"(ret)                                                  // 输出约束，ret 是输出变量
+        : "i"(SYS_exec), "m"(name), "m"(len), "m"(binary), "m"(size) // 输入约束，
+        /*
+        "i"(SYS_exec),      输入：系统调用号 SYS_exec
+        "m"(name),          输入：程序名称的地址
+        "m"(len),           输入：程序名称的长度
+        "m"(binary),        输入：程序二进制起始地址
+        "m"(size)           输入：程序二进制大小
+         */
+
+        : "memory"); // 修饰符：告知编译器汇编代码会修改内存
     cprintf("ret = %d\n", ret);
     return ret;
 }
-
+//__KERNEL_EXECVE 是最底层的核心宏
+// 用于调用 kernel_execve 函数执行指定的用户态程序。
+// kernel_execve(name, binary, size)：核心执行函数，启动指定的用户态程序。
 #define __KERNEL_EXECVE(name, binary, size) ({           \
     cprintf("kernel_execve: pid = %d, name = \"%s\".\n", \
             current->pid, name);                         \
     kernel_execve(name, binary, (size_t)(size));         \
 })
-
+// 用于执行内核预定义的用户态程序。
+/*
+extern unsigned char _binary_obj___user_##x##_out_start[], _binary_obj___user_##x##_out_size[];：
+声明链接器生成的全局符号。
+_binary_obj___user_##x##_out_start：用户态程序二进制文件的起始地址。
+_binary_obj___user_##x##_out_size：用户态程序二进制文件的大小。
+*/
 #define KERNEL_EXECVE(x) ({                                    \
     extern unsigned char _binary_obj___user_##x##_out_start[], \
         _binary_obj___user_##x##_out_size[];                   \
     __KERNEL_EXECVE(#x, _binary_obj___user_##x##_out_start,    \
                     _binary_obj___user_##x##_out_size);        \
 })
-
+// 用于启动任意指定的用户态程序，通过自定义的二进制起始地址和大小。
+/*
+x：程序名称（一个标识符）。
+xstart：程序二进制文件的起始地址。
+xsize：程序二进制文件的大小。
+指定起始地址 xstart 和大小 xsize，这比 KERNEL_EXECVE 更灵活。
+*/
 #define __KERNEL_EXECVE2(x, xstart, xsize) ({   \
     extern unsigned char xstart[], xsize[];     \
     __KERNEL_EXECVE(#x, xstart, (size_t)xsize); \
@@ -1035,9 +1114,11 @@ kernel_execve(const char *name, unsigned char *binary, size_t size)
 static int
 user_main(void *arg)
 {
+    // 如果定义了 TEST，调用 KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE)，尝试加载和执行一个测试程序。
 #ifdef TEST
     KERNEL_EXECVE2(TEST, TESTSTART, TESTSIZE);
 #else
+    // 否则，调用 KERNEL_EXECVE(exit)，执行 exit 程序。
     KERNEL_EXECVE(exit);
 #endif
     panic("user_main execve failed.\n");
@@ -1047,6 +1128,8 @@ user_main(void *arg)
 static int
 init_main(void *arg)
 {
+    // nr_free_pages()：获取当前系统的空闲页数量。
+    // kallocated()：获取内核已分配内存的大小。
     size_t nr_free_pages_store = nr_free_pages();
     size_t kernel_allocated_store = kallocated();
 
