@@ -67,7 +67,9 @@ struct proc_struct
     list_entry_t hash_link;       // 进程哈希链表链接
     int exit_code;                // 退出码（发送给父进程）
     uint32_t wait_state;          // 等待状态
-    // proc->yptr 是当前进程的“年幼兄弟”指针，指向当前进程的下一个兄弟进程。
+    // cptr指向当前进程的第一个子进程。
+    // yptr指向当前进程的下一个兄弟进程。(创建时间晚于当前进程)
+    // optr指向当前进程的上一个兄弟进程。（创建时间早于当前进程）
     struct proc_struct *cptr, *yptr, *optr; // 进程之间的关系
 };
 // 表示该进程正在退出（shutting down），通常在 do_exit 或类似的退出流程中设置。

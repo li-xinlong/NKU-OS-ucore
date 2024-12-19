@@ -649,6 +649,7 @@ int do_exit(int error_code)
  * @binary:  the memory addr of the content of binary program
  * @size:  the size of the content of binary program
  */
+// load_icode 函数的主要功能是加载一个 ELF 格式的可执行文件到当前进程的虚拟内存空间中，并为其构建执行环境。
 static int
 load_icode(unsigned char *binary, size_t size)
 {
@@ -659,10 +660,11 @@ load_icode(unsigned char *binary, size_t size)
 
     int ret = -E_NO_MEM;
     struct mm_struct *mm;
+    // 1.初始化内存管理结构
 
-    //(1)(2)完成新的进程内存空间的初始化
+    // 完成新的进程内存空间的初始化
     //(1) create a new mm for current process
-    // 创建一个新的内存空间
+    //  创建一个新的内存空间
     if ((mm = mm_create()) == NULL)
     {
         goto bad_mm;
@@ -673,30 +675,33 @@ load_icode(unsigned char *binary, size_t size)
     {
         goto bad_pgdir_cleanup_mm;
     }
-
-    //(3)将新的进程数据填入为其准备的内存空间中
-    //(3) 复制二进制程序的 TEXT/DATA 段，并在进程的内存空间中构建 BSS 部分
+    // 2.解析 ELF 文件
+    // 将新的进程数据填入为其准备的内存空间中
+    // 复制二进制程序的 TEXT/DATA 段，并在进程的内存空间中构建 BSS 部分
     struct Page *page;
-    //(3.1) 获取二进制程序（ELF 格式）的文件头
+    // 获取二进制程序（ELF 格式）的文件头
     struct elfhdr *elf = (struct elfhdr *)binary;
-    //(3.2) 获取二进制程序（ELF 格式）的程序段头入口
+    // 获取二进制程序（ELF 格式）的程序段头入口
     struct proghdr *ph = (struct proghdr *)(binary + elf->e_phoff);
-    //(3.3) 这个程序是有效的吗？
+    // 这个程序是有效的吗？
     if (elf->e_magic != ELF_MAGIC)
     {
         ret = -E_INVAL_ELF;
         goto bad_elf_cleanup_pgdir;
     }
+    // 3. 加载程序段
 
     uint32_t vm_flags, perm;
+    // 遍历程序头,
     struct proghdr *ph_end = ph + elf->e_phnum;
     for (; ph < ph_end; ph++)
     {
-        //(3.4) 查找每个程序段头
+        // 遍历 ELF 的程序头（program header），定位需要加载的程序段（LOAD 段）。
         if (ph->p_type != ELF_PT_LOAD)
         {
             continue;
         }
+        // 校验和映射虚拟内存,校验程序段大小，创建对应的虚拟内存区域（vma）。
         if (ph->p_filesz > ph->p_memsz)
         {
             ret = -E_INVAL_ELF;
@@ -735,7 +740,9 @@ load_icode(unsigned char *binary, size_t size)
         //(3.6) alloc memory, and  copy the contents of every program section (from, from+end) to process's memory (la, la+end)
         end = ph->p_va + ph->p_filesz;
         //(3.6.1) copy TEXT/DATA section of bianry program
-        // 拷贝程序的代码 内容/数据段 内容到进程空间中
+        // 拷贝程序的代码 内容(.text)/数据段(.data ) 内容到进程空间中
+        // data段存储初始化的全局变量和静态变量
+        // text段存储程序的代码
         while (start < end)
         {
             if ((page = pgdir_alloc_page(mm->pgdir, la, perm)) == NULL)
@@ -750,6 +757,8 @@ load_icode(unsigned char *binary, size_t size)
             memcpy(page2kva(page) + off, from, size);
             start += size, from += size;
         }
+        // 构建 .bss 段,为 .bss 段分配内存并清零，确保未初始化数据段正确初始化为 0
+        // bss段存储未初始化的全局变量和静态变量
 
         //(3.6.2) build BSS section of binary program
         end = ph->p_va + ph->p_memsz;
@@ -784,7 +793,7 @@ load_icode(unsigned char *binary, size_t size)
             start += size;
         }
     }
-    //(4) build user stack memory
+    // 4.构建用户栈,分配和映射用户栈，确保用户程序拥有独立的栈空间。
     vm_flags = VM_READ | VM_WRITE | VM_STACK;
     if ((ret = mm_map(mm, USTACKTOP - USTACKSIZE, USTACKSIZE, vm_flags, NULL)) != 0)
     {
@@ -797,7 +806,7 @@ load_icode(unsigned char *binary, size_t size)
 
     // 截止到(4)结束，ELF程序的内存空间以及建立完毕
 
-    //(5) set current process's mm, sr3, and set CR3 reg = physical addr of Page Directory
+    //(5) 更新进程环境
     mm_count_inc(mm);
     current->mm = mm;
     current->cr3 = PADDR(mm->pgdir);
