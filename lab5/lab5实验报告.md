@@ -467,6 +467,7 @@ asm volatile (
 > 执行：make grade。如果所显示的应用程序检测都输出ok，则基本正确。（使用的是qemu-1.0.1）
 
 `make grade` 运行结果如下所示：
+
 <img src=".\res\2.png" alt="image" style="zoom:50%;" />
 ### 扩展练习 Challenge
 
@@ -575,9 +576,11 @@ asm volatile (
         }
 ```
 实现 COW 机制后，`make grade`运行结果如下所示：
-    <img src=".\res\3.png" alt="image-20241219224002367" style="zoom:50%;" />
+
+<img src=".\res\3.png" alt="image-20241219224002367" style="zoom:50%;" />
 
 实现 COW 机制后，`make qemu`部分运行结果如下所示：
+
 <img src=".\res\4.png" alt="image-20241219224158907" style="zoom:50%;" />
 
 2. ####  说明该用户程序是何时被预先加载到内存中的？与我们常用操作系统的加载有何区别，原因是什么？
