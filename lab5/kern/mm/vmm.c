@@ -560,6 +560,7 @@ int do_pgfault(struct mm_struct *mm, uint_t error_code, uintptr_t addr)
             if (page_ref(page) > 1)
             {
                 // 释放当前PTE的引用并分配一个新物理页
+                // 将旧物理页的数据从内核虚拟地址 kva_src 拷贝到新页的地址 kva_dst。
                 struct Page *newPage = pgdir_alloc_page(mm->pgdir, addr, perm);
                 void *kva_src = page2kva(page);
                 void *kva_dst = page2kva(newPage);

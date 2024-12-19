@@ -82,7 +82,7 @@ _save_context:
     LOAD s2, 33*REGBYTES(sp)
 
     andi s0, s1, SSTATUS_SPP #可以通过SSTATUS_SPP的值判断之前是用户态还是内核态
-    bnez s0, _restore_context
+    bnez s0, _restore_context 
 
 _save_kernel_sp:
     # Save unwound kernel stack pointer in sscratch

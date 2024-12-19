@@ -467,6 +467,7 @@ int copy_range(pde_t *to, pde_t *from, uintptr_t start, uintptr_t end,
             if (share)
             {
                 cprintf("Sharing the page 0x%x\n", page2kva(page));
+                // 将一个物理页映射到两个不同的虚拟地址中，从而实现共享。
                 page_insert(from, page, start, perm & (~PTE_W));
                 ret = page_insert(to, page, start, perm & (~PTE_W));
             }

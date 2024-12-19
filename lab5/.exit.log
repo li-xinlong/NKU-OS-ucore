@@ -110,6 +110,8 @@ COW: ptep 0xc04c0ff8, pte 0x2012f81b
 I am parent, fork a child pid 3
 I am the parent, waiting now..
 I am the child.
+Store/AMO page fault
+COW: ptep 0xc04c8ff8, pte 0x2012f81b
 waitpid 3 ok.
 exit pass.
 all user-mode processes have quit.

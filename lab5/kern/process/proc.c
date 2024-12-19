@@ -675,13 +675,13 @@ load_icode(unsigned char *binary, size_t size)
     }
 
     //(3)将新的进程数据填入为其准备的内存空间中
-    //(3) copy TEXT/DATA section, build BSS parts in binary to memory space of process
+    //(3) 复制二进制程序的 TEXT/DATA 段，并在进程的内存空间中构建 BSS 部分
     struct Page *page;
-    //(3.1) get the file header of the bianry program (ELF format)
+    //(3.1) 获取二进制程序（ELF 格式）的文件头
     struct elfhdr *elf = (struct elfhdr *)binary;
-    //(3.2) get the entry of the program section headers of the bianry program (ELF format)
+    //(3.2) 获取二进制程序（ELF 格式）的程序段头入口
     struct proghdr *ph = (struct proghdr *)(binary + elf->e_phoff);
-    //(3.3) This program is valid?
+    //(3.3) 这个程序是有效的吗？
     if (elf->e_magic != ELF_MAGIC)
     {
         ret = -E_INVAL_ELF;
@@ -692,7 +692,7 @@ load_icode(unsigned char *binary, size_t size)
     struct proghdr *ph_end = ph + elf->e_phnum;
     for (; ph < ph_end; ph++)
     {
-        //(3.4) find every program section headers
+        //(3.4) 查找每个程序段头
         if (ph->p_type != ELF_PT_LOAD)
         {
             continue;
@@ -887,7 +887,7 @@ int do_execve(const char *name, size_t len, unsigned char *binary, size_t size)
     {
         goto execve_exit; // 返回不为0，则加载失败
     }
-    // 如果set_proc_name的实现不变, 为什么不能直接set_proc_name(current, name)? 为什么要用local_name?暂时不知道
+    // 如果set_proc_name的实现不变, 为什么不能直接set_proc_name(current, name)? 为什么要用local_name?
     set_proc_name(current, local_name);
     return 0;
 
