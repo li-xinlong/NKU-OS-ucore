@@ -469,6 +469,7 @@ asm volatile (
 `make grade` 运行结果如下所示：
 
 <img src=".\res\2.png" alt="image" style="zoom:50%;" />
+
 ### 扩展练习 Challenge
 
 1. #### 实现 Copy on Write （COW）机制
